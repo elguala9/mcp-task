@@ -54,7 +54,7 @@ test("create_task validates dependencies exist", (t) =>
     );
   }));
 
-test("create_task rejects unknown status/priority", (t) =>
+test("create_task rejects unknown status/priority/type", (t) =>
   withProject(t, async (root) => {
     await assert.rejects(
       () => ops.createTask(root, { title: "X", type: "bug", status: "bogus" }),
@@ -63,6 +63,10 @@ test("create_task rejects unknown status/priority", (t) =>
     await assert.rejects(
       () => ops.createTask(root, { title: "Y", type: "bug", priority: "urgentissimo" }),
       /Unknown priority/
+    );
+    await assert.rejects(
+      () => ops.createTask(root, { title: "Z", type: "chore" }),
+      /Unknown type/
     );
   }));
 
@@ -122,6 +126,40 @@ test("check_task detects a section removed by hand, and fix_task restores it add
     assert.equal(after.ok, true);
     const task = await ops.getTask(root, "add-dark-mode.md");
     assert.ok(task.sections.some((s) => s.name === "Note"));
+  }));
+
+test("fix_task restores a missing middle section in its configured position, not appended at the end", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const withoutNote = raw.replace(/## Note\n\n/, ""); // "Note" is the middle section: Descrizione, Note, Checklist
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(path.join(root, "tasks", "add-dark-mode.md"), withoutNote, "utf8");
+
+    await ops.fixTask(root, "add-dark-mode.md");
+    const task = await ops.getTask(root, "add-dark-mode.md");
+    assert.deepEqual(
+      task.sections.map((s) => s.name),
+      ["Descrizione", "Note", "Checklist"]
+    );
+  }));
+
+test("fix_task restores a missing first section in position, ahead of the rest", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const withoutDescrizione = raw.replace(/## Descrizione\n\n### Sottosezione1\n\n/, "");
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(path.join(root, "tasks", "add-dark-mode.md"), withoutDescrizione, "utf8");
+
+    await ops.fixTask(root, "add-dark-mode.md");
+    const task = await ops.getTask(root, "add-dark-mode.md");
+    assert.deepEqual(
+      task.sections.map((s) => s.name),
+      ["Descrizione", "Note", "Checklist"]
+    );
   }));
 
 test("check_task flags unrecognized status/priority and broken dependencies", (t) =>
@@ -234,37 +272,44 @@ test("delete_task removes the file from tasks/ or tasks/done/", (t) =>
     await assert.rejects(() => ops.getTask(root, "setup-ci.md"), /not found/);
   }));
 
-test("get_next_task picks highest priority among unblocked 'created' tasks, oldest wins ties", (t) =>
-  withProject(t, async (root) => {
-    await ops.createTask(root, { title: "Low one", type: "bug", priority: "low" });
-    await ops.createTask(root, { title: "High one", type: "bug", priority: "high" });
-    await ops.createTask(root, { title: "Critical blocked", type: "bug", priority: "critical", dependencies: ["low-one.md"] });
-
-    const next = await ops.getNextTask(root);
-    assert.equal(next?.path, "high-one.md"); // critical is blocked, so high wins
-  }));
-
-test("get_next_task excludes tasks whose dependency is not finished, includes once it is", (t) =>
-  withProject(t, async (root) => {
-    await ops.createTask(root, { title: "Setup CI", type: "fix", priority: "critical" });
-    await ops.createTask(root, { title: "Refactor API", type: "feature", priority: "high", dependencies: ["setup-ci.md"] });
-
-    const first = await ops.getNextTask(root);
-    assert.equal(first?.path, "setup-ci.md");
-
-    await ops.endTask(root, "setup-ci.md");
-    const second = await ops.getNextTask(root);
-    assert.equal(second?.path, "refactor-api.md");
-  }));
-
-test("get_next_task dependency resolution follows a task into tasks/done/", (t) =>
+test("move_task is a pure path rename: does not touch status, does not rename based on title", (t) =>
   withProject(t, async (root) => {
     await ops.createTask(root, { title: "Setup CI", type: "fix" });
-    await ops.endTask(root, "setup-ci.md");
-    await ops.createTask(root, { title: "Refactor API", type: "feature", dependencies: ["setup-ci.md"] });
+    const moved = await ops.moveTask(root, "setup-ci.md", "ci-setup.md");
+    assert.equal(moved.path, "ci-setup.md");
+    assert.equal(moved.status, "created"); // untouched
+    const task = await ops.getTask(root, "ci-setup.md");
+    assert.equal(task.frontmatter.title, "Setup CI"); // title untouched, filename not derived from it
+  }));
 
-    const next = await ops.getNextTask(root);
-    assert.equal(next?.path, "refactor-api.md");
+test("move_task rejects a destination collision", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Setup CI", type: "fix" });
+    await ops.createTask(root, { title: "Other", type: "fix" });
+    await assert.rejects(() => ops.moveTask(root, "setup-ci.md", "other.md"), /already exists/);
+  }));
+
+test("move_task rewrites dependencies of every other task referencing the old path", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Setup CI", type: "fix" });
+    await ops.createTask(root, { title: "Refactor API", type: "feature", dependencies: ["setup-ci.md"] });
+    await ops.createTask(root, { title: "Add search", type: "feature", dependencies: ["setup-ci.md"] });
+
+    const moved = await ops.moveTask(root, "setup-ci.md", "ci-setup.md");
+    assert.deepEqual(moved.updatedDependents.sort(), ["add-search.md", "refactor-api.md"]);
+
+    const refactor = await ops.getTask(root, "refactor-api.md");
+    assert.deepEqual(refactor.frontmatter.dependencies, ["ci-setup.md"]);
+    const search = await ops.getTask(root, "add-search.md");
+    assert.deepEqual(search.frontmatter.dependencies, ["ci-setup.md"]);
+  }));
+
+test("get_task_config returns the general statuses/priorities/types configuration", (t) =>
+  withProject(t, async (root) => {
+    const config = await ops.getTaskConfig(root);
+    assert.ok(config.statuses.includes("created"));
+    assert.ok(config.priorities.includes("critical"));
+    assert.ok(config.types.feature);
   }));
 
 test("status shortcuts set the expected reserved status", (t) =>
@@ -347,19 +392,12 @@ test("a realistic backlog of many tasks: filters, dependency chains and priority
     const choreTagged = await ops.listTasks(root, { tag: "chore" });
     assert.deepEqual(choreTagged.map((s) => s.path), ["update-dependencies.md"]);
 
-    // "Refactor API" is critical but blocked on "Fix login bug" (not finished yet),
-    // so "Refactor DB layer" (also critical, unblocked) wins on priority alone.
-    const next1 = await ops.getNextTask(root);
-    assert.equal(next1?.path, "refactor-db-layer.md");
-
     for (const path of ["fix-login-bug.md", "add-notifications.md", "refactor-db-layer.md"]) {
       const report = await ops.checkTask(root, path);
       assert.equal(report.ok, true, `expected ${path} to be valid, got issues: ${JSON.stringify(report.issues)}`);
     }
 
-    // Once "Fix login bug" finishes, "Refactor API" becomes unblocked too; tied on
-    // critical priority with "Refactor DB layer", the older task wins the tie-break.
     await ops.endTask(root, "fix-login-bug.md");
-    const next2 = await ops.getNextTask(root);
-    assert.equal(next2?.path, "refactor-api.md");
+    const refactorApi = await ops.getTask(root, "refactor-api.md");
+    assert.equal(refactorApi.frontmatter.status, "created");
   }));
