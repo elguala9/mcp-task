@@ -1,0 +1,519 @@
+TODO - MCP Task Manager basato su file Markdown
+=================================================
+
+OBIETTIVO
+---------
+Server MCP locale per gestire task di sviluppo interno.
+Ogni task è un file .md con frontmatter YAML, salvato in una cartella
+del progetto. Niente database, niente file indice separato: la fonte
+di verita' e' sempre e solo il file .md sul disco, identificato dal
+suo percorso (non da un id numerico interno). Letti al volo ogni
+volta che serve (list, get, next, ecc). Se un file viene editato a
+mano, il server lo vede subito, perche' non c'e' nessuna cache da
+tenere sincronizzata.
+Linguaggio: Typescript
+
+1. STRUTTURA CARTELLE
+----------------------
+progetto/
+  tasks/
+    fix-login-bug.md
+    add-dark-mode.md
+    refactor-api.md
+    done/
+      setup-ci.md
+  task-config.yaml        <- definizione tipi e sezioni personalizzabili
+
+I task attivi (qualsiasi status diverso da "finished") stanno nella
+cartella tasks/ piatta. Quando un task raggiunge lo status
+riservato "finished" (vedi punto 2), il file viene FISICAMENTE
+SPOSTATO nella sottocartella tasks/done/, allo stesso livello degli
+altri task attivi.
+
+Il nome file e' uno slug leggibile derivato dal titolo (es. "Fix
+login bug" -> "fix-login-bug.md"). NESSUN ID NUMERICO: il task e'
+identificato univocamente dal suo percorso relativo dentro tasks/
+(es. "fix-login-bug.md" oppure "done/setup-ci.md"). Tutte le
+operazioni (get_task, update_task, delete_task, ecc.) prendono come
+input il percorso/nome file, non un numero.
+
+Se si crea un nuovo task con uno slug che collide con un file
+esistente (anche dentro done/), l'operazione FALLISCE con un errore
+esplicito che chiede all'utente di scegliere un titolo diverso.
+NESSUN suffisso automatico (niente -2, -3...): la collisione va
+sempre risolta dall'utente, mai dal server in modo silenzioso, per
+evitare che due titoli molto simili finiscano per riferirsi a file
+con nomi quasi identici e confondibili tra loro.
+
+
+2. CONFIGURAZIONE (task-config.yaml)
+--------------------------------------
+File opzionale nella root del progetto. Se manca, il markdown sarà
+vuoto (nessuna struttura di sections imposta, nessun type/status/
+priority configurato oltre a un default minimo).
+
+statuses:
+  - created
+  - started
+  - tested
+  - deployed
+  - finished
+
+I nomi "created", "started", "tested", "deployed" e "finished" sono
+RISERVATI: hanno un ruolo speciale riconosciuto per NOME (non per
+posizione nella lista):
+  - "created": status assegnato di default da create_task quando non
+    se ne specifica uno diverso
+  - "started": status assegnato dalla scorciatoia start_task
+  - "tested": status assegnato dalla scorciatoia test_task
+  - "deployed": status assegnato dalla scorciatoia deploy_task
+  - "finished": status TERMINALE - quando un task lo raggiunge, il
+    file viene spostato in tasks/done/ (vedi punto 1); e' l'unico
+    status che triggera lo spostamento
+Questi cinque nomi non sono rinominabili: sono sempre presenti con
+questi nomi esatti, indipendentemente da cosa altro l'utente
+aggiunge alla lista. Sono standard di default per un workflow di
+sviluppo tipico (creato -> in lavorazione -> testato -> distribuito
+-> chiuso), ma nulla vieta di non usare mai "tested" o "deployed" per
+un task che non li richiede (es. si puo' passare direttamente da
+"started" a "finished" con change_status, senza passare per forza da
+tutti gli stati intermedi).
+
+L'utente puo' aggiungere QUALSIASI numero di status personalizzati
+aggiuntivi nella lista, in qualunque posizione (es. "review",
+"blocked", "waiting-approval"...). Questi status personalizzati:
+  - non hanno una scorciatoia dedicata (niente review_task, ecc.)
+  - si raggiungono solo tramite il tool generico change_status
+    (vedi punto 5), che puo' impostare qualunque status, sia
+    personalizzato sia uno dei cinque riservati (created/started/
+    tested/deployed/finished) - quindi change_status e' una
+    generalizzazione delle scorciatoie dedicate, non un'alternativa
+    separata
+  - NON triggerano mai lo spostamento in tasks/done/, che resta
+    legato esclusivamente al nome riservato "finished"
+
+Esempio con uno status personalizzato aggiunto:
+statuses:
+  - created
+  - started
+  - review
+  - tested
+  - deployed
+  - finished
+
+priorities:
+  - low
+  - medium
+  - high
+  - critical
+
+types:
+  feature:
+    sections:
+      - name: Descrizione
+        sections:
+          - name: Sottosezione1
+          - name: Sottosezione2
+            sections:
+              - name: Sottosottosezione1
+              - name: Sottosottosezione2
+      - name: Note
+      - name: Checklist
+
+  fix:
+    sections:
+      - name: Descrizione
+      - name: Checklist
+
+  bug:
+    sections: []
+
+Tutti i valori sopra (statuses, priorities, types e le relative
+sections) devono essere liberamente personalizzabili dall'utente
+modificando questo file, senza toccare il codice.
+
+Se un file .md contiene uno status/priority non presente in config,
+va comunque accettato in lettura (non scartare dati), ma segnalato
+come "valore non riconosciuto" quando si fa validazione (vedi
+check_task al punto 5).
+
+STRUTTURA SEZIONI PER TIPO (punto chiave)
+Ogni "type" ha la propria struttura di sections, definita in modo
+ricorsivo (una section puo' contenere una lista "sections" annidata,
+senza limite di profondita'). Tipi diversi possono avere strutture
+completamente diverse: "feature" puo' avere Descrizione/Note/Checklist
+con sotto-sezioni, "fix" solo Descrizione/Checklist, "bug" nessuna
+sezione fissa.
+
+Tutte le sections elencate per un tipo sono OBBLIGATORIE: se un tipo
+definisce delle sections, ogni task di quel tipo deve avere tutte
+quelle sections presenti nel file (anche vuote di contenuto, ma il
+titolo "## Nome" deve esistere). Non esiste il concetto di section
+opzionale: o e' elencata in config (e allora e' obbligatoria per quel
+tipo), o non e' elencata.
+
+Se un type ha "sections: []" (lista vuota) o non definisce affatto
+la chiave "sections", il corpo del file per quel tipo e' completamente
+libero: nessuna struttura imposta, l'utente scrive quello che vuole
+senza vincoli di titoli di sezione.
+
+Il livello di annidamento nella config (## per le sections di primo
+livello sotto un type, ### per le sotto-sections, #### per le
+sotto-sotto-sections, ecc) deve rispecchiare la profondita' in cui
+la voce compare nella lista "sections" annidata del config.
+
+Due sections non possono avere lo stesso nome all'interno dello
+stesso file, indipendentemente dal livello di annidamento: non e'
+permesso creare/validare un task con nomi di sezione duplicati.
+Questo va garantito sia in fase di creazione (create_task genera le
+sections dal config, che quindi deve gia' rispettare questa regola)
+sia in fase di validazione (check_task, vedi punto 5).
+
+
+3. FORMATO DI UN FILE TASK
+----------------------------
+---
+title: "Refactor API layer"
+type: feature
+status: started
+priority: high
+created_at: 2026-08-20T10:00:00Z
+updated_at: 2026-08-25T09:00:00Z
+tags: [backend, refactor]
+dependencies:
+  - fix-login-bug.md
+  - done/setup-ci.md
+---
+
+## Descrizione
+Testo libero in markdown.
+
+## Note
+- nota 1
+- nota 2
+
+## Checklist
+- [ ] primo punto
+- [ ] secondo punto
+  - [ ] sotto-punto ricorsivo
+    - [ ] sotto-sotto-punto
+
+Nessun campo "id" nel frontmatter: il task e' identificato solo dal
+percorso/nome del file (vedi punto 1).
+
+CAMPO "dependencies": lista di percorsi (relativi a tasks/, stesso
+formato usato per identificare i task, es. "fix-login-bug.md" o
+"done/setup-ci.md") dei task che devono essere completati PRIMA che
+questo task possa essere sbloccato/iniziato. E' una lista opzionale
+(assente o vuota = nessuna dipendenza). I percorsi vanno scritti
+esattamente come identificano il file al momento in cui vengono
+aggiunti; se un task-dipendenza viene completato e quindi spostato in
+tasks/done/, il percorso salvato in "dependencies" degli altri task
+NON viene aggiornato automaticamente (nessuna riscrittura di file non
+direttamente coinvolti nell'operazione) - la verifica se una
+dipendenza e' soddisfatta si fa controllando lo status del file
+puntato indipendentemente da quale cartella (tasks/ o tasks/done/) lo
+contiene attualmente (vedi anche get_next_task e check_task al punto
+5, che devono cercare il file dipendenza in entrambe le posizioni).
+
+Le sezioni sono blocchi che iniziano con "## Nome sezione" e vanno
+fino alla prossima sezione di pari livello o alla fine del file.
+Il corpo di ogni sezione e' markdown libero: l'utente ci scrive quello
+che vuole (testo, liste, checklist, altre sotto-sezioni con ### ecc).
+
+
+4. SOTTOSEZIONI RICORSIVE
+----------------------------
+Dentro il corpo di una sezione, l'utente puo' annidare altre
+sotto-sezioni usando livelli di heading crescenti (##, ###, ####...)
+oppure liste puntate annidate (utile per checklist gerarchiche).
+
+Il server deve poter:
+- leggere una sezione come albero (sezione -> sotto-sezioni -> testo)
+  non solo come blob di testo piatto
+- scrivere/aggiornare un nodo specifico dell'albero senza toccare il
+  resto del file (es: aggiungere un sotto-punto alla Checklist senza
+  riscrivere tutta la Descrizione)
+- questo vale anche per liste annidate tipo checklist a piu' livelli
+
+Percorso di una sotto-sezione: si esprime come catena di nomi
+separati da " > ", es. "Checklist > Fase 2 > Task 3". Se l'utente,
+nel chiamare un tool, non specifica un percorso completo o lo
+specifica in modo ambiguo, e' compito del server/agente interpretare
+la richiesta nel modo piu' ragionevole (es. cercare per nome unico
+nell'albero se non ci sono ambiguita', chiedere chiarimento solo se
+il nome compare in piu' punti dell'albero).
+
+Non serve un parser markdown completo esterno: basta riconoscere
+- righe di heading (#, ##, ### ecc, contando il livello da # ripetuti)
+- righe di lista con indentazione (per capire il livello di nesting)
+e ricostruire una struttura ad albero minimale in memoria, usata solo
+per la singola operazione richiesta, poi scartata (non salvata a
+parte, il file .md resta l'unica fonte di verita').
+
+
+5. OPERAZIONI (TOOL MCP + CLI)
+---------------------------------
+Tutte le operazioni prendono in input il PERCORSO del file (relativo
+a tasks/, es. "fix-login-bug.md" o "done/setup-ci.md"), mai un id.
+
+create_task
+  input: title, type (obbligatorio, determina quale albero di
+  sections va usato), priority (opzionale, default = prima priority
+  configurata), status (opzionale, default = "created", lo status
+  riservato per i task appena creati - vedi punto 2),
+  dependencies (opzionale, lista di percorsi di altri task; il server
+  verifica che ogni percorso indicato esista davvero, in tasks/ o in
+  tasks/done/, altrimenti segnala errore e non crea il file)
+  genera lo slug del filename dal title, verificando che non collida
+  con nessun file esistente (ne' in tasks/ ne' in tasks/done/)
+  in base al "type" scelto, il server legge da task-config.yaml
+  l'albero di sections associato a quel tipo e genera nel file tutte
+  le heading corrispondenti (## per primo livello, ### per il livello
+  sotto, ecc), vuote di contenuto ma tutte presenti - non e' possibile
+  creare un task di un certo type senza tutte le sue sections
+  se il type ha "sections: []" o non ha sections in config, il corpo
+  del file viene creato vuoto, senza alcuna heading imposta
+
+list_tasks
+  filtri opzionali: status, type, priority, tag, include_done
+  (default include_done=false, per non mescolare di default i task
+  attivi con quelli archiviati in done/)
+  scansiona tutti i file .md in tasks/ (e in tasks/done/ solo se
+  include_done=true), legge il frontmatter di ciascuno, applica i
+  filtri, ritorna elenco sintetico (percorso, title, status,
+  priority, type)
+
+get_task
+  input: percorso file
+  ritorna frontmatter completo + corpo strutturato ad albero di
+  sezioni
+
+get_section
+  input: percorso file, percorso sezione (es. "Checklist" oppure
+  "Checklist > Fase 2")
+  ritorna solo il contenuto (ed eventuali sotto-sezioni) di quel
+  nodo dell'albero, senza il resto del file
+
+check_task
+  input: percorso file
+  valida il file contro la struttura attesa dal suo "type" in
+  task-config.yaml: sections mancanti, sections duplicate, status/
+  priority non riconosciuti rispetto a config, percorsi in
+  "dependencies" che non corrispondono a nessun file esistente (ne'
+  in tasks/ ne' in tasks/done/) - una dipendenza "rotta" di questo
+  tipo va segnalata come problema, ma NON e' correggibile da fix_task
+  in modo additivo (vedi sotto), quindi richiede intervento manuale
+  IMPORTANTE: una section il cui titolo "## Nome" e' presente ma il
+  cui corpo e' vuoto (nessun testo sotto la heading) NON e' un errore
+  e non va mai segnalata da check_task - "sections mancanti" significa
+  solo che la heading stessa non esiste nel file, non che sia priva
+  di contenuto. Le sections possono restare vuote indefinitamente
+  senza che questo sia un problema di validazione.
+  ritorna un report di eventuali problemi trovati, SENZA modificare
+  il file (operazione di sola lettura/diagnosi)
+
+fix_task
+  input: percorso file
+  usa la stessa logica di check_task per capire cosa non va
+  puo' correggere SOLO problemi risolvibili in modo puramente
+  additivo: aggiungere sections mancanti (vuote) rispettando la
+  posizione/livello previsti dal config
+  NON cancella e NON modifica mai contenuto gia' esistente nel file
+  (niente rimozione di sections in eccesso, niente correzione di
+  valori di status/priority non riconosciuti: quello richiede una
+  decisione umana, non e' un'azione sicura da automatizzare)
+  se il problema rilevato da check_task non e' risolvibile in modo
+  puramente additivo (es. sections duplicate, valori non
+  riconosciuti), fix_task deve fermarsi e ritornare che non e' stato
+  possibile correggere il file, spiegando perche', senza toccare
+  nulla
+
+update_task
+  input: percorso file, campi da aggiornare (frontmatter e/o sezioni)
+  per il frontmatter: merge dei campi passati
+  per le sezioni: puo' sostituire il contenuto di una sezione/
+  sotto-sezione indicata per percorso, senza toccare le altre
+  aggiorna sempre updated_at
+  IL CAMPO "type" NON PUO' ESSERE MODIFICATO tramite update_task:
+  cambiare tipo a un task esistente non e' supportato, va considerato
+  un'operazione concettualmente diversa (equivale a creare un nuovo
+  task di altro tipo); se serve, l'utente crea un nuovo task del tipo
+  desiderato e cancella/archivia quello vecchio a mano
+  se l'aggiornamento porta lo status a "finished" (lo status
+  terminale riservato, vedi punto 2), il file va spostato in
+  tasks/done/ come effetto collaterale di questa chiamata (vedi
+  punto 1); se lo status passa DA "finished" a un altro status
+  (riapertura di un task archiviato), il file va rispostato fuori da
+  tasks/done/ nella cartella tasks/ principale
+  IL CAMPO "status" PUO' ESSERE IMPOSTATO A QUALSIASI VALORE tramite
+  update_task, sia riservato (created/started/tested/deployed/
+  finished) sia personalizzato definito in config - in questo senso
+  update_task e' gia' di per se' equivalente a change_status (vedi
+  sotto), ma change_status resta comunque disponibile come tool
+  dedicato con lo scopo esplicito di cambiare solo lo status, senza
+  dover passare altri campi
+
+update_section
+  input: percorso file, percorso sezione, nuovo contenuto
+  sovrascrive completamente il contenuto di quella sezione/
+  sotto-sezione (e di tutto cio' che contiene sotto, se ha
+  sotto-sezioni), lasciando intatto il resto del file
+
+append_to_section
+  input: percorso file, percorso sezione, nuovo contenuto da
+  aggiungere in fondo (es. nuova riga di checklist, nuovo sotto-punto)
+  utile per non dover riscrivere tutta la sezione ogni volta con
+  update_section
+
+delete_task
+  input: percorso file
+  elimina il file .md corrispondente (funziona sia per file in
+  tasks/ che in tasks/done/)
+  NON aggiorna automaticamente il campo "dependencies" di altri task
+  che referenziano il file eliminato: questo crea una dipendenza
+  "rotta", rilevabile con check_task su quei task (vedi sopra), da
+  risolvere manualmente dall'utente
+
+get_next_task
+  ritorna, tra i task in tasks/ (mai tra quelli gia' in done/) con
+  status "created" (lo status riservato iniziale, vedi punto 2) E CON
+  TUTTE LE DIPENDENZE SODDISFATTE (ogni percorso in "dependencies"
+  deve puntare a un file con status "finished", ovunque si trovi tra
+  tasks/ e tasks/done/), quello con priorita' piu' alta; a parita' di
+  priorita' vince il piu' vecchio (created_at)
+  i task con dipendenze non ancora soddisfatte vengono scartati dalla
+  selezione, anche se hanno priorita' piu' alta di altri candidati
+
+  NESSUN BLOCCO ALTROVE: le dipendenze influenzano SOLO get_next_task.
+  update_task, change_status e qualsiasi altra operazione manuale
+  possono sempre cambiare lo status di un task anche se le sue
+  dipendenze non sono ancora soddisfatte - il server non impedisce
+  mai esplicitamente questa azione, si limita a non proporlo
+  automaticamente. La responsabilita' di rispettare o meno le
+  dipendenze quando si agisce manualmente resta dell'utente/agente.
+
+start_task
+  scorciatoia per update_task che porta lo status a "started" (nome
+  riservato, vedi punto 2)
+
+test_task
+  scorciatoia per update_task che porta lo status a "tested" (nome
+  riservato, vedi punto 2)
+
+deploy_task
+  scorciatoia per update_task che porta lo status a "deployed" (nome
+  riservato, vedi punto 2)
+
+end_task
+  scorciatoia per update_task che porta lo status a "finished" (nome
+  riservato, vedi punto 2), triggerando quindi anche lo spostamento
+  del file in tasks/done/
+
+get_task_description
+  prende la descrionze dello yaml di una task e a ritorna
+
+move_task
+  move a task from a path to another
+
+Questi quattro tool, insieme a create_task (che assegna "created"
+come status di default), coprono i cinque status riservati con una
+scorciatoia dedicata ciascuno. I nomi "created"/"started"/"tested"/
+"deployed"/"finished" non sono personalizzabili (vedi punto 2), quindi
+queste cinque scorciatoie non hanno bisogno di leggere il nome dello
+status da config: puntano sempre esattamente a quei cinque nomi
+fissi. Nessuna di queste scorciatoie impone di passare per tutti gli
+stati intermedi in ordine: si puo' chiamare end_task direttamente da
+"started" (o da qualsiasi altro status) saltando "tested"/"deployed"
+se per quel task non servono.
+
+change_status
+  input: percorso file, nuovo status
+  tool generico per impostare QUALSIASI status: sia uno dei cinque
+  riservati (created/started/tested/deployed/finished, agendo quindi
+  in modo equivalente a create_task/start_task/test_task/deploy_task/
+  end_task per quanto riguarda il solo campo status) sia uno status
+  personalizzato definito dall'utente in task-config.yaml (es.
+  "review", "blocked")
+  se il nuovo status e' "finished", triggera lo spostamento in
+  tasks/done/ come per end_task/update_task; se il nuovo status
+  esce da "finished" verso un altro status, triggera il rientro in
+  tasks/ come per update_task
+  e' l'unico modo per raggiungere uno status personalizzato: gli
+  status personalizzati non hanno scorciatoie dedicate proprie
+
+Tutte le operazioni devono essere disponibili sia come tool MCP
+(chiamabili dall'agente) sia come comandi da riga di comando standalone
+sullo stesso eseguibile, per poter lavorare anche senza passare
+dall'agente.
+
+
+6. STANDARD MARKDOWN DI RIFERIMENTO
+---------------------------------------
+Invece di appoggiarsi a "markdown" generico (ambiguo: ogni editor
+interpreta a modo suo casi limite come nesting delle liste, spazi
+dopo #, righe vuote tra item), il parser leggero del punto 4 segue
+le regole di:
+
+  - CommonMark (spec.commonmark.org) per heading e liste annidate
+    (i due unici costrutti che il parser deve riconoscere)
+  - estensione GFM Task List (github.com/github/cmark-gfm) per le
+    checkbox "- [ ] testo", che NON fanno parte di CommonMark puro
+    ma servono per le sezioni tipo Checklist
+
+Questo non richiede necessariamente una libreria esterna completa:
+basta che le regole minime del parser fatto in casa (punto 4) siano
+coerenti con CommonMark su questi aspetti, cioe':
+  - un heading e' una riga che inizia con 1-6 caratteri "#" seguiti
+    da almeno uno spazio (non "#testo" senza spazio, quello non e'
+    un heading valido)
+  - il livello di annidamento di una lista si determina dall'
+    indentazione relativa rispetto all'item padre, non da un numero
+    fisso di spazi identico ovunque
+  - righe dentro un blocco di codice (delimitato da ``` o indentato
+    di 4+ spazi) non vanno mai interpretate come heading o list item,
+    anche se contengono simboli "#" o "-"
+
+Il blocco frontmatter YAML (delimitato da "---" a inizio e fine
+file) NON fa parte ne' di CommonMark ne' di GFM: e' una convenzione
+separata (usata anche da Jekyll/Hugo/Obsidian) che va sempre
+riconosciuta ed estratta per prima, prima di passare il resto del
+contenuto alla logica di parsing di heading/liste.
+
+Vantaggio pratico: qualunque editor l'utente usi per aprire i file
+.md a mano (VS Code, Obsidian, GitHub stesso), la resa visiva e
+l'interpretazione della struttura restano coerenti con quello che il
+server si aspetta di leggere.
+
+
+7. VINCOLI ESPLICITI
+------------------------
+- NIENTE file indice/cache separato: ogni comando legge i file .md
+  direttamente al momento della chiamata. Semplicita' e robustezza
+  prima di tutto: se abbiamo pochi task, scansionare la cartella ogni
+  volta e' piu' che sufficiente, non serve ottimizzare.
+- NESSUN ID NUMERICO: ogni task e' identificato univocamente dal suo
+  percorso file (vedi punto 1). Nessuna logica di generazione/
+  riutilizzo di id da mantenere.
+- I file .md restano leggibili e modificabili a mano in qualsiasi
+  momento con qualunque editor, senza rompere nulla.
+- Tipi, priorita' e sezioni sono tutti liberamente configurabili da
+  task-config.yaml, mai hard-coded nel codice. Gli status sono
+  configurabili SOLO per l'aggiunta di status personalizzati
+  aggiuntivi: i cinque nomi riservati "created", "started", "tested",
+  "deployed", "finished" esistono sempre con questi nomi esatti e
+  ruoli fissi (vedi punto 2), non sono rinominabili ne' rimovibili.
+- Le sotto-sezioni vanno supportate in modo ricorsivo (nessun limite
+  di profondita' arbitrario, se non quello naturale del markdown).
+- Non e' richiesta gestione di concorrenza multi-processo avanzata
+  (lock file, ecc): scrittura semplice e diretta sul file, va bene
+  per uso singolo sviluppatore in locale.
+- La validazione (check_task) e' sempre un'operazione esplicita,
+  separata dalla lettura/scrittura ordinaria: list_tasks e get_task
+  non bloccano né segnalano automaticamente problemi di struttura,
+  li si scopre solo chiamando check_task, e li si corregge (quando
+  possibile) solo chiamando fix_task in modo esplicito.
+- Cambiare il "type" di un task esistente non e' un'operazione
+  supportata: va trattato come creazione di un task nuovo.
+- Non esiste comando di "compattazione" o rinumerazione, dato che
+  non esistono numeri da compattare (identificazione per percorso).
