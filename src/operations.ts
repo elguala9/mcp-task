@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { loadConfig, tasksDir } from "./config.js";
+import { validateConfig, tasksDir } from "./config.js";
 import { slugify } from "./slug.js";
 import { parseFrontmatter, serializeFile } from "./frontmatter.js";
 import {
@@ -20,9 +20,11 @@ import {
   listActiveTaskPaths,
   listDoneTaskPaths,
   ensureDirFor,
+  assertNoCollision,
   DONE_SUBDIR,
 } from "./store.js";
 import { RESERVED_STATUSES } from "./types.js";
+import { TaskManagerError } from "./errors.js";
 import type {
   TaskConfig,
   TaskFrontmatter,
@@ -33,9 +35,18 @@ import type {
   SectionDef,
 } from "./types.js";
 
+/**
+ * Loads and validates task-config.yaml. Every exported operation below calls
+ * this (directly or through a helper that already does) before touching any
+ * task file, so a broken config is always caught up front, not only by the
+ * commands that happen to read the fields that are wrong.
+ */
 export async function getConfig(projectRoot: string): Promise<TaskConfig> {
-  return loadConfig(projectRoot);
+  return validateConfig(projectRoot);
 }
+
+/** Alias exposed to CLI/MCP under the tool name `get_task_config`. */
+export const getTaskConfig = getConfig;
 
 async function readRawTask(projectRoot: string, relPath: string) {
   const normalized = normalizeTaskPath(relPath);
@@ -45,7 +56,7 @@ async function readRawTask(projectRoot: string, relPath: string) {
     raw = await fs.readFile(abs, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Task not found: "${normalized}"`);
+      throw new TaskManagerError("not_found", `Task not found: "${normalized}"`);
     }
     throw err;
   }
@@ -96,29 +107,30 @@ export interface CreateTaskInput {
 export async function createTask(projectRoot: string, input: CreateTaskInput): Promise<TaskSummary> {
   const config = await getConfig(projectRoot);
   const { title, type } = input;
-  if (!title || !title.trim()) throw new Error("title is required");
-  if (!type || !type.trim()) throw new Error("type is required");
+  if (!title || !title.trim()) throw new TaskManagerError("invalid_input", "title is required");
+  if (!type || !type.trim()) throw new TaskManagerError("invalid_input", "type is required");
 
   const slug = slugify(title);
-  if (!slug) throw new Error(`Could not derive a filename slug from title "${title}"`);
+  if (!slug)
+    throw new TaskManagerError("invalid_input", `Could not derive a filename slug from title "${title}"`);
   const relPath = `${slug}.md`;
 
-  const activeAbs = absolutePathFor(projectRoot, relPath);
-  const doneAbs = absolutePathFor(projectRoot, `${DONE_SUBDIR}/${relPath}`);
-  if ((await fileExists(activeAbs)) || (await fileExists(doneAbs))) {
-    throw new Error(
-      `A task named "${relPath}" already exists. Choose a different title to avoid a filename collision.`
-    );
-  }
+  await assertNoCollision(projectRoot, relPath);
 
   const status = input.status ?? "created";
   if (!config.statuses.includes(status)) {
-    throw new Error(`Unknown status "${status}". Defined statuses: ${config.statuses.join(", ")}`);
+    throw new TaskManagerError(
+      "unknown_status",
+      `Unknown status "${status}". Defined statuses: ${config.statuses.join(", ")}`
+    );
   }
 
   let priority: string | undefined = input.priority;
   if (priority !== undefined && config.priorities.length > 0 && !config.priorities.includes(priority)) {
-    throw new Error(`Unknown priority "${priority}". Defined priorities: ${config.priorities.join(", ")}`);
+    throw new TaskManagerError(
+      "unknown_priority",
+      `Unknown priority "${priority}". Defined priorities: ${config.priorities.join(", ")}`
+    );
   }
   if (priority === undefined && config.priorities.length > 0) {
     priority = config.priorities[0];
@@ -128,7 +140,10 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
   for (const dep of dependencies) {
     const resolved = await resolveDependencyLocation(projectRoot, dep);
     if (!resolved) {
-      throw new Error(`Dependency "${dep}" does not point to an existing task (checked tasks/ and tasks/done/).`);
+      throw new TaskManagerError(
+        "unresolved_dependency",
+        `Dependency "${dep}" does not point to an existing task (checked tasks/ and tasks/done/).`
+      );
     }
   }
 
@@ -146,6 +161,7 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
   if (priority !== undefined) frontmatter.priority = priority;
   if (dependencies.length > 0) frontmatter.dependencies = dependencies;
 
+  const activeAbs = absolutePathFor(projectRoot, relPath);
   await writeRawTask(activeAbs, frontmatter, body);
   return toSummary(relPath, frontmatter);
 }
@@ -163,6 +179,7 @@ export interface ListTasksFilters {
 }
 
 export async function listTasks(projectRoot: string, filters: ListTasksFilters = {}): Promise<TaskSummary[]> {
+  await getConfig(projectRoot);
   const includeDone = filters.include_done ?? false;
   const relPaths = [
     ...(await listActiveTaskPaths(projectRoot)),
@@ -188,11 +205,13 @@ export async function listTasks(projectRoot: string, filters: ListTasksFilters =
 // ---------------------------------------------------------------------------
 
 export async function getTask(projectRoot: string, relPath: string): Promise<TaskFull> {
+  await getConfig(projectRoot);
   const { relPath: normalized, frontmatter, body } = await readRawTask(projectRoot, relPath);
   return { path: normalized, frontmatter, sections: toSectionTree(body) };
 }
 
 export async function getSection(projectRoot: string, relPath: string, sectionPath: string) {
+  await getConfig(projectRoot);
   const { body } = await readRawTask(projectRoot, relPath);
   const parsed = parseBody(body);
   const { node } = resolveSectionPath(parsed, sectionPath);
@@ -247,7 +266,10 @@ export async function getTaskDescription(
   const typeDef = config.types[type];
   const def = findSectionDefByPath(typeDef?.sections, sectionPath);
   if (!def) {
-    throw new Error(`Section "${sectionPath}" is not defined for type "${type}" in task-config.yaml`);
+    throw new TaskManagerError(
+      "not_found",
+      `Section "${sectionPath}" is not defined for type "${type}" in task-config.yaml`
+    );
   }
   return { type, section: sectionPath, description: def.description ?? null };
 }
@@ -425,7 +447,7 @@ async function relocateIfNeeded(
     const target = `${DONE_SUBDIR}/${relPath}`;
     const targetAbs = absolutePathFor(projectRoot, target);
     if (await fileExists(targetAbs)) {
-      throw new Error(`Cannot move task to tasks/done/: "${target}" already exists there.`);
+      throw new TaskManagerError("collision", `Cannot move task to tasks/done/: "${target}" already exists there.`);
     }
     await ensureDirFor(targetAbs);
     await fs.rename(absolutePathFor(projectRoot, relPath), targetAbs);
@@ -436,7 +458,10 @@ async function relocateIfNeeded(
     const target = relPath.slice(DONE_SUBDIR.length + 1);
     const targetAbs = absolutePathFor(projectRoot, target);
     if (await fileExists(targetAbs)) {
-      throw new Error(`Cannot move task out of tasks/done/: "${target}" already exists there.`);
+      throw new TaskManagerError(
+        "collision",
+        `Cannot move task out of tasks/done/: "${target}" already exists there.`
+      );
     }
     await ensureDirFor(targetAbs);
     await fs.rename(absolutePathFor(projectRoot, relPath), targetAbs);
@@ -447,11 +472,13 @@ async function relocateIfNeeded(
 }
 
 export async function updateTask(projectRoot: string, relPath: string, input: UpdateTaskInput): Promise<TaskFull> {
-  if (input.frontmatter && "type" in input.frontmatter && input.frontmatter.type !== undefined) {
-    throw new Error('The "type" field cannot be changed via update_task.');
-  }
-
   const config = await getConfig(projectRoot);
+  if (input.frontmatter && "type" in input.frontmatter && input.frontmatter.type !== undefined) {
+    throw new TaskManagerError("invalid_operation", 'The "type" field cannot be changed via update_task.');
+  }
+  // Title changes are cosmetic only: update_task never renames the file, since
+  // the task is identified by its path, not by its title (see move_task for
+  // the only supported way to change a task's path).
   const current = await readRawTask(projectRoot, relPath);
   const oldStatus = current.frontmatter.status;
 
@@ -461,7 +488,8 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
   const mergedFrontmatter: TaskFrontmatter = { ...current.frontmatter, ...providedFrontmatter };
 
   if (input.frontmatter?.status !== undefined && !config.statuses.includes(String(mergedFrontmatter.status))) {
-    throw new Error(
+    throw new TaskManagerError(
+      "unknown_status",
       `Unknown status "${mergedFrontmatter.status}". Defined statuses: ${config.statuses.join(", ")}`
     );
   }
@@ -470,7 +498,8 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
     config.priorities.length > 0 &&
     !config.priorities.includes(String(mergedFrontmatter.priority))
   ) {
-    throw new Error(
+    throw new TaskManagerError(
+      "unknown_priority",
       `Unknown priority "${mergedFrontmatter.priority}". Defined priorities: ${config.priorities.join(", ")}`
     );
   }
@@ -495,6 +524,7 @@ export async function updateSection(
   sectionPath: string,
   content: string
 ): Promise<TaskFull> {
+  await getConfig(projectRoot);
   const current = await readRawTask(projectRoot, relPath);
   const newBody = replaceSectionContent(current.body, sectionPath, content);
   const frontmatter = { ...current.frontmatter, updated_at: new Date().toISOString() };
@@ -508,6 +538,7 @@ export async function appendToSection(
   sectionPath: string,
   content: string
 ): Promise<TaskFull> {
+  await getConfig(projectRoot);
   const current = await readRawTask(projectRoot, relPath);
   const newBody = appendToSectionContent(current.body, sectionPath, content);
   const frontmatter = { ...current.frontmatter, updated_at: new Date().toISOString() };
@@ -520,6 +551,7 @@ export async function appendToSection(
 // ---------------------------------------------------------------------------
 
 export async function deleteTask(projectRoot: string, relPath: string): Promise<void> {
+  await getConfig(projectRoot);
   const { abs, relPath: normalized } = await readRawTask(projectRoot, relPath);
   await fs.unlink(abs);
   void normalized;
@@ -529,74 +561,72 @@ export async function deleteTask(projectRoot: string, relPath: string): Promise<
 // move_task
 // ---------------------------------------------------------------------------
 
-export async function moveTask(projectRoot: string, fromPath: string, toPath: string): Promise<TaskSummary> {
+/**
+ * Isolated, reusable method: rewrites the `dependencies` list of every other
+ * task (active and done) that references `oldPath`, pointing it at
+ * `newPath` instead. Used by move_task so a rename never leaves the rest of
+ * the backlog with a dangling/stale dependency path. Returns the paths of
+ * the tasks it updated.
+ */
+async function updateDependencyReferences(
+  projectRoot: string,
+  oldPath: string,
+  newPath: string
+): Promise<string[]> {
+  const allPaths = [...(await listActiveTaskPaths(projectRoot)), ...(await listDoneTaskPaths(projectRoot))];
+  const updated: string[] = [];
+  for (const relPath of allPaths) {
+    if (relPath === newPath) continue;
+    const abs = absolutePathFor(projectRoot, relPath);
+    const raw = await fs.readFile(abs, "utf8");
+    const { frontmatter, body } = parseFrontmatter(raw);
+    const deps = frontmatter.dependencies;
+    if (!deps || !deps.includes(oldPath)) continue;
+    const newFrontmatter: TaskFrontmatter = {
+      ...frontmatter,
+      dependencies: deps.map((d) => (d === oldPath ? newPath : d)),
+      updated_at: new Date().toISOString(),
+    };
+    await writeRawTask(abs, newFrontmatter, body);
+    updated.push(relPath);
+  }
+  return updated;
+}
+
+export interface MoveTaskResult extends TaskSummary {
+  updatedDependents: string[];
+}
+
+/**
+ * Pure path rename: moves a task .md file from one path to another. Never
+ * touches `status` (path and status are independent concepts — moving a
+ * file in/out of tasks/done/ this way does NOT change its status field; use
+ * update_task/change_status for that) and never renames based on `title`.
+ * Fails on a destination collision. Propagates the new path into every
+ * other task's `dependencies` list via updateDependencyReferences.
+ */
+export async function moveTask(projectRoot: string, fromPath: string, toPath: string): Promise<MoveTaskResult> {
+  await getConfig(projectRoot);
   const current = await readRawTask(projectRoot, fromPath);
   const targetRelPath = normalizeTaskPath(toPath);
 
   if (targetRelPath === current.relPath) {
-    throw new Error(`Source and destination are the same: "${targetRelPath}"`);
+    throw new TaskManagerError("invalid_input", `Source and destination are the same: "${targetRelPath}"`);
   }
   if (await fileExists(absolutePathFor(projectRoot, targetRelPath))) {
-    throw new Error(`A task already exists at "${targetRelPath}". Choose a different destination path.`);
+    throw new TaskManagerError(
+      "collision",
+      `A task already exists at "${targetRelPath}". Choose a different destination path.`
+    );
   }
 
   const targetAbs = absolutePathFor(projectRoot, targetRelPath);
   await ensureDirFor(targetAbs);
   await fs.rename(current.abs, targetAbs);
 
-  return toSummary(targetRelPath, current.frontmatter);
-}
+  const updatedDependents = await updateDependencyReferences(projectRoot, current.relPath, targetRelPath);
 
-// ---------------------------------------------------------------------------
-// get_next_task
-// ---------------------------------------------------------------------------
-
-export async function getNextTask(projectRoot: string): Promise<TaskSummary | null> {
-  const config = await getConfig(projectRoot);
-  const activePaths = await listActiveTaskPaths(projectRoot);
-
-  const candidates: { relPath: string; fm: TaskFrontmatter }[] = [];
-  for (const relPath of activePaths) {
-    const abs = absolutePathFor(projectRoot, relPath);
-    const raw = await fs.readFile(abs, "utf8");
-    const { frontmatter } = parseFrontmatter(raw);
-    if (frontmatter.status !== "created") continue;
-
-    let allSatisfied = true;
-    for (const dep of frontmatter.dependencies ?? []) {
-      const resolved = await resolveDependencyLocation(projectRoot, dep);
-      if (!resolved) {
-        allSatisfied = false;
-        break;
-      }
-      const depRaw = await fs.readFile(absolutePathFor(projectRoot, resolved), "utf8");
-      const { frontmatter: depFm } = parseFrontmatter(depRaw);
-      if (depFm.status !== "finished") {
-        allSatisfied = false;
-        break;
-      }
-    }
-    if (!allSatisfied) continue;
-    candidates.push({ relPath, fm: frontmatter });
-  }
-
-  if (candidates.length === 0) return null;
-
-  const priorityRank = (p: unknown) => {
-    const idx = config.priorities.indexOf(String(p));
-    return idx === -1 ? -1 : idx;
-  };
-
-  candidates.sort((a, b) => {
-    const rankDiff = priorityRank(b.fm.priority) - priorityRank(a.fm.priority);
-    if (rankDiff !== 0) return rankDiff;
-    const aTime = new Date(String(a.fm.created_at)).getTime();
-    const bTime = new Date(String(b.fm.created_at)).getTime();
-    return aTime - bTime;
-  });
-
-  const winner = candidates[0];
-  return toSummary(winner.relPath, winner.fm);
+  return { ...toSummary(targetRelPath, current.frontmatter), updatedDependents };
 }
 
 // ---------------------------------------------------------------------------

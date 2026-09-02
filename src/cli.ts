@@ -1,13 +1,13 @@
 import { Command } from "commander";
 import * as ops from "./operations.js";
+import { toStandardError } from "./errors.js";
 
 function print(data: unknown): void {
   console.log(JSON.stringify(data, null, 2));
 }
 
 function fail(err: unknown): never {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(`Error: ${message}`);
+  console.error(JSON.stringify(toStandardError(err), null, 2));
   process.exit(1);
 }
 
@@ -186,10 +186,10 @@ export function buildCli(projectRoot: string): Command {
     });
 
   program
-    .command("next-task")
+    .command("get-task-config")
     .action(async () => {
       try {
-        print(await ops.getNextTask(projectRoot));
+        print(await ops.getTaskConfig(projectRoot));
       } catch (err) {
         fail(err);
       }

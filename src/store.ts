@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { tasksDir, doneDir } from "./config.js";
+import { TaskManagerError } from "./errors.js";
 
 export const DONE_SUBDIR = "done";
 
@@ -33,6 +34,25 @@ export async function fileExists(absPath: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Isolated collision guard reused wherever a task name must be unique across
+ * the whole namespace: throws if `relPath` already exists either as an
+ * active task (tasks/) or as an archived one (tasks/done/), regardless of
+ * which of the two the caller is about to write to.
+ */
+export async function assertNoCollision(projectRoot: string, relPath: string): Promise<void> {
+  const normalized = normalizeTaskPath(relPath);
+  const bareRelPath = isInDone(normalized) ? normalized.slice(DONE_SUBDIR.length + 1) : normalized;
+  const activeAbs = absolutePathFor(projectRoot, bareRelPath);
+  const doneAbs = absolutePathFor(projectRoot, `${DONE_SUBDIR}/${bareRelPath}`);
+  if ((await fileExists(activeAbs)) || (await fileExists(doneAbs))) {
+    throw new TaskManagerError(
+      "collision",
+      `A task named "${bareRelPath}" already exists (checked tasks/ and tasks/done/). Choose a different name.`
+    );
   }
 }
 
