@@ -117,6 +117,11 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
 
   await assertNoCollision(projectRoot, relPath);
 
+  const configuredTypes = Object.keys(config.types);
+  if (configuredTypes.length > 0 && !configuredTypes.includes(type)) {
+    throw new TaskManagerError("unknown_type", `Unknown type "${type}". Defined types: ${configuredTypes.join(", ")}`);
+  }
+
   const status = input.status ?? "created";
   if (!config.statuses.includes(status)) {
     throw new TaskManagerError(
@@ -323,6 +328,11 @@ export async function checkTask(projectRoot: string, relPath: string): Promise<C
     issues.push({ type: "unrecognized_priority", message: `Unrecognized priority "${frontmatter.priority}"` });
   }
 
+  const configuredTypes = Object.keys(config.types);
+  if (configuredTypes.length > 0 && !configuredTypes.includes(String(frontmatter.type))) {
+    issues.push({ type: "unrecognized_type", message: `Unrecognized type "${frontmatter.type}"` });
+  }
+
   const typeDef = config.types[String(frontmatter.type)];
   issues.push(...findMissingSections(typeDef?.sections, sections, ""));
 
@@ -355,6 +365,16 @@ interface Insertion {
   text: string;
 }
 
+/**
+ * Walks `expected` (the config-defined sections for this level) against the
+ * headings actually present in the file, and records one insertion per
+ * contiguous run of missing siblings, positioned right before the next
+ * sibling that IS present (or at the end of the parent's content if none of
+ * the remaining expected siblings are present either). This is what keeps a
+ * restored section in its config-defined position instead of always being
+ * appended at the end of the file, regardless of where it belongs among its
+ * siblings.
+ */
 function computeMissingInsertions(
   expected: SectionDef[] | undefined,
   actualNodes: ReturnType<typeof parseBody>["roots"],
@@ -364,14 +384,27 @@ function computeMissingInsertions(
 ): void {
   if (!expected || expected.length === 0) return;
   const actualHeadings = actualNodes.filter((n) => n.kind === "heading");
-  for (const def of expected) {
-    const match = actualHeadings.find((n) => n.name === def.name);
-    if (!match) {
-      const block = generateSectionsMarkdown([def], level);
-      insertions.push({ atLine: parentEndLine, text: block });
-    } else {
-      computeMissingInsertions(def.sections, match.children, match.contentEnd, level + 1, insertions);
+  const findActual = (name: string) => actualHeadings.find((n) => n.name === name);
+
+  let i = 0;
+  while (i < expected.length) {
+    const match = findActual(expected[i].name);
+    if (match) {
+      computeMissingInsertions(expected[i].sections, match.children, match.contentEnd, level + 1, insertions);
+      i += 1;
+      continue;
     }
+
+    const missingRun: SectionDef[] = [];
+    let j = i;
+    while (j < expected.length && !findActual(expected[j].name)) {
+      missingRun.push(expected[j]);
+      j += 1;
+    }
+    const nextPresent = j < expected.length ? findActual(expected[j].name) : undefined;
+    const atLine = nextPresent ? nextPresent.lineIndex : parentEndLine;
+    insertions.push({ atLine, text: generateSectionsMarkdown(missingRun, level) });
+    i = j;
   }
 }
 
@@ -406,7 +439,11 @@ export async function fixTask(projectRoot: string, relPath: string): Promise<Fix
   for (const ins of insertions) {
     const block = ins.text.split("\n");
     const needsLeadingBlank = lines[ins.atLine - 1] !== undefined && lines[ins.atLine - 1].trim() !== "";
-    const toInsert = needsLeadingBlank ? ["", ...block] : block;
+    // A trailing blank line is needed whenever the insertion lands before an
+    // existing sibling (rather than at the very end of the file), so the
+    // restored section stays visually separated from what follows it.
+    const needsTrailingBlank = lines[ins.atLine] !== undefined && lines[ins.atLine].trim() !== "";
+    const toInsert = [...(needsLeadingBlank ? [""] : []), ...block, ...(needsTrailingBlank ? [""] : [])];
     lines.splice(ins.atLine, 0, ...toInsert);
   }
   const newBody = lines.join("\n");

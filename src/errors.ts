@@ -9,6 +9,7 @@ export type TaskManagerErrorCode =
   | "collision"
   | "unknown_status"
   | "unknown_priority"
+  | "unknown_type"
   | "unresolved_dependency"
   | "invalid_config"
   | "invalid_operation";
