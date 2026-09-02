@@ -54,7 +54,7 @@ test("create_task validates dependencies exist", (t) =>
     );
   }));
 
-test("create_task rejects unknown status/priority", (t) =>
+test("create_task rejects unknown status/priority/type", (t) =>
   withProject(t, async (root) => {
     await assert.rejects(
       () => ops.createTask(root, { title: "X", type: "bug", status: "bogus" }),
@@ -63,6 +63,10 @@ test("create_task rejects unknown status/priority", (t) =>
     await assert.rejects(
       () => ops.createTask(root, { title: "Y", type: "bug", priority: "urgentissimo" }),
       /Unknown priority/
+    );
+    await assert.rejects(
+      () => ops.createTask(root, { title: "Z", type: "chore" }),
+      /Unknown type/
     );
   }));
 
@@ -122,6 +126,40 @@ test("check_task detects a section removed by hand, and fix_task restores it add
     assert.equal(after.ok, true);
     const task = await ops.getTask(root, "add-dark-mode.md");
     assert.ok(task.sections.some((s) => s.name === "Note"));
+  }));
+
+test("fix_task restores a missing middle section in its configured position, not appended at the end", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const withoutNote = raw.replace(/## Note\n\n/, ""); // "Note" is the middle section: Descrizione, Note, Checklist
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(path.join(root, "tasks", "add-dark-mode.md"), withoutNote, "utf8");
+
+    await ops.fixTask(root, "add-dark-mode.md");
+    const task = await ops.getTask(root, "add-dark-mode.md");
+    assert.deepEqual(
+      task.sections.map((s) => s.name),
+      ["Descrizione", "Note", "Checklist"]
+    );
+  }));
+
+test("fix_task restores a missing first section in position, ahead of the rest", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const withoutDescrizione = raw.replace(/## Descrizione\n\n### Sottosezione1\n\n/, "");
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(path.join(root, "tasks", "add-dark-mode.md"), withoutDescrizione, "utf8");
+
+    await ops.fixTask(root, "add-dark-mode.md");
+    const task = await ops.getTask(root, "add-dark-mode.md");
+    assert.deepEqual(
+      task.sections.map((s) => s.name),
+      ["Descrizione", "Note", "Checklist"]
+    );
   }));
 
 test("check_task flags unrecognized status/priority and broken dependencies", (t) =>

@@ -259,7 +259,13 @@ a tasks/, es. "fix-login-bug.md" o "done/setup-ci.md"), mai un id.
 
 create_task
   input: title, type (obbligatorio, determina quale albero di
-  sections va usato), priority (opzionale, default = prima priority
+  sections va usato; se task-config.yaml definisce almeno un type, il
+  valore passato deve essere uno di quelli definiti, altrimenti errore
+  "Unknown type" - stessa logica di validazione di status/priority; se
+  invece "types" e' del tutto assente/vuoto in config, qualunque
+  valore e' accettato con corpo libero, come da comportamento di
+  default quando manca task-config.yaml), priority (opzionale, default
+  = prima priority
   configurata), status (opzionale, default = "created", lo status
   riservato per i task appena creati - vedi punto 2),
   dependencies (opzionale, lista di percorsi di altri task; il server
@@ -545,7 +551,7 @@ server si aspetta di leggere.
   formato di risposta standard: { ok: false, error: { code, message } },
   dove "code" e' uno tra un set fisso di identificatori stabili
   (es. invalid_input, not_found, collision, unknown_status,
-  unknown_priority, unresolved_dependency, invalid_config,
+  unknown_priority, unknown_type, unresolved_dependency, invalid_config,
   invalid_operation) e "message" e' il testo leggibile per
   l'utente/agente. Nessun errore generico non tipizzato.
 - Il codice e' organizzato in metodi isolati e riutilizzabili per
