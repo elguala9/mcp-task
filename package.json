@@ -1,14 +1,44 @@
 {
-  "name": "mcp-task-manager",
+  "name": "@elguala9/mcp-task",
   "version": "0.1.0",
-  "description": "Local MCP server + CLI for managing Markdown-based development tasks",
+  "description": "Local MCP server + CLI for managing development tasks as Markdown files, no database required",
   "type": "module",
+  "license": "MIT",
+  "author": "Luca Gualandi",
+  "homepage": "https://github.com/elguala9/mcp-task#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elguala9/mcp-task.git"
+  },
+  "bugs": {
+    "url": "https://github.com/elguala9/mcp-task/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "task-manager",
+    "markdown",
+    "cli",
+    "ai-agent",
+    "claude"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "bin": {
-    "mcp-task-manager": "./dist/index.js"
+    "mcp-task": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "task-config-example.yaml"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "pretest": "node -e \"require('fs').rmSync('test/.sandbox',{recursive:true,force:true})\"",

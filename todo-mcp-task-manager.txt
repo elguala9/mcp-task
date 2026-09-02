@@ -259,14 +259,22 @@ a tasks/, es. "fix-login-bug.md" o "done/setup-ci.md"), mai un id.
 
 create_task
   input: title, type (obbligatorio, determina quale albero di
-  sections va usato), priority (opzionale, default = prima priority
+  sections va usato; se task-config.yaml definisce almeno un type, il
+  valore passato deve essere uno di quelli definiti, altrimenti errore
+  "Unknown type" - stessa logica di validazione di status/priority; se
+  invece "types" e' del tutto assente/vuoto in config, qualunque
+  valore e' accettato con corpo libero, come da comportamento di
+  default quando manca task-config.yaml), priority (opzionale, default
+  = prima priority
   configurata), status (opzionale, default = "created", lo status
   riservato per i task appena creati - vedi punto 2),
   dependencies (opzionale, lista di percorsi di altri task; il server
   verifica che ogni percorso indicato esista davvero, in tasks/ o in
   tasks/done/, altrimenti segnala errore e non crea il file)
   genera lo slug del filename dal title, verificando che non collida
-  con nessun file esistente (ne' in tasks/ ne' in tasks/done/)
+  con nessun file esistente (ne' in tasks/ ne' in tasks/done/) tramite
+  un metodo isolato e riutilizzabile dedicato solo a questo controllo
+  di collisione (non inline dentro create_task)
   in base al "type" scelto, il server legge da task-config.yaml
   l'albero di sections associato a quel tipo e genera nel file tutte
   le heading corrispondenti (## per primo livello, ### per il livello
@@ -335,6 +343,11 @@ update_task
   per le sezioni: puo' sostituire il contenuto di una sezione/
   sotto-sezione indicata per percorso, senza toccare le altre
   aggiorna sempre updated_at
+  NON RINOMINA MAI IL FILE: cambiare "title" e' un campo di
+  frontmatter come un altro, non influenza in alcun modo il nome/
+  percorso del file. Il file resta identificato solo dal suo percorso
+  (vedi punto 1) - se serve cambiare anche il percorso, e' compito di
+  move_task (vedi punto 5), un'operazione esplicita e separata
   IL CAMPO "type" NON PUO' ESSERE MODIFICATO tramite update_task:
   cambiare tipo a un task esistente non e' supportato, va considerato
   un'operazione concettualmente diversa (equivale a creare un nuovo
@@ -375,23 +388,14 @@ delete_task
   "rotta", rilevabile con check_task su quei task (vedi sopra), da
   risolvere manualmente dall'utente
 
-get_next_task
-  ritorna, tra i task in tasks/ (mai tra quelli gia' in done/) con
-  status "created" (lo status riservato iniziale, vedi punto 2) E CON
-  TUTTE LE DIPENDENZE SODDISFATTE (ogni percorso in "dependencies"
-  deve puntare a un file con status "finished", ovunque si trovi tra
-  tasks/ e tasks/done/), quello con priorita' piu' alta; a parita' di
-  priorita' vince il piu' vecchio (created_at)
-  i task con dipendenze non ancora soddisfatte vengono scartati dalla
-  selezione, anche se hanno priorita' piu' alta di altri candidati
-
-  NESSUN BLOCCO ALTROVE: le dipendenze influenzano SOLO get_next_task.
-  update_task, change_status e qualsiasi altra operazione manuale
-  possono sempre cambiare lo status di un task anche se le sue
-  dipendenze non sono ancora soddisfatte - il server non impedisce
-  mai esplicitamente questa azione, si limita a non proporlo
-  automaticamente. La responsabilita' di rispettare o meno le
-  dipendenze quando si agisce manualmente resta dell'utente/agente.
+get_task_config
+  nessun input
+  ritorna la configurazione generale letta da task-config.yaml
+  (statuses, priorities, types con le relative sections), cioe' lo
+  stesso oggetto che il server usa internamente per validare gli
+  altri comandi - utile per un agente che deve sapere quali valori
+  sono validi prima di chiamare create_task/change_status/ecc, senza
+  dover leggere task-config.yaml a mano
 
 start_task
   scorciatoia per update_task che porta lo status a "started" (nome
@@ -414,7 +418,26 @@ get_task_description
   prende la descrionze dello yaml di una task e a ritorna
 
 move_task
-  move a task from a path to another
+  input: percorso sorgente, percorso destinazione (relativi a tasks/)
+  RINOMINA PURA DI PERCORSO: sposta/rinomina il file .md da un percorso
+  all'altro. NON tocca MAI il campo "status": percorso e status sono
+  due concetti indipendenti (spostare un file dentro/fuori tasks/done/
+  con move_task non cambia lo status nel frontmatter - per cambiare
+  status si usa update_task/change_status, che a loro volta triggerano
+  lo spostamento fisico in modo automatico e coerente con lo status)
+  NON rinomina/deriva mai il nome file dal "title": il title resta un
+  campo di frontmatter, il path e' scelto esplicitamente dal chiamante
+  Se il percorso di destinazione esiste gia' (in qualunque punto
+  dell'albero), l'operazione FALLISCE con un errore di collisione,
+  senza sovrascrivere nulla (stessa filosofia "no auto-fix" di
+  create_task, vedi punto 1)
+  Aggiorna automaticamente il campo "dependencies" di TUTTI gli altri
+  task (sia in tasks/ che in tasks/done/) che referenziano il vecchio
+  percorso, sostituendolo col nuovo (metodo isolato dedicato,
+  riutilizzabile, separato dalla logica di move vera e propria) -
+  questo è il comportamento OPPOSTO a delete_task, che invece lascia
+  volutamente le dipendenze rotte perché il task non esiste più da
+  nessuna parte
 
 Questi quattro tool, insieme a create_task (che assegna "created"
 come status di default), coprono i cinque status riservati con una
@@ -517,3 +540,24 @@ server si aspetta di leggere.
   supportata: va trattato come creazione di un task nuovo.
 - Non esiste comando di "compattazione" o rinumerazione, dato che
   non esistono numeri da compattare (identificazione per percorso).
+- task-config.yaml viene caricato E VALIDATO (statuses/priorities/
+  types/sections coerenti, nessun nome di sezione duplicato, ecc) ad
+  ogni singolo comando lanciato (sia CLI che tool MCP), non solo da
+  chi lo usa esplicitamente: un metodo dedicato e isolato fa questo
+  caricamento+validazione una volta per chiamata, così un file di
+  config rotto viene segnalato subito, indipendentemente da quali
+  campi il comando specifico avrebbe effettivamente toccato.
+- Tutti gli errori restituiti da tool MCP e comandi CLI seguono un
+  formato di risposta standard: { ok: false, error: { code, message } },
+  dove "code" e' uno tra un set fisso di identificatori stabili
+  (es. invalid_input, not_found, collision, unknown_status,
+  unknown_priority, unknown_type, unresolved_dependency, invalid_config,
+  invalid_operation) e "message" e' il testo leggibile per
+  l'utente/agente. Nessun errore generico non tipizzato.
+- Il codice e' organizzato in metodi isolati e riutilizzabili per
+  ogni responsabilita' distinta (es. controllo collisione nomi,
+  riscrittura delle dipendenze di altri task, validazione config),
+  invece di ripetere la stessa logica inline dentro piu' operazioni:
+  riduce la complessita' di ogni singola funzione e permette di
+  riusare la stessa logica da piu' tool (es. lo stesso controllo di
+  collisione usato da create_task potrebbe servire anche altrove).

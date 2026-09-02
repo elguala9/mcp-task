@@ -57,6 +57,7 @@ export interface CheckIssue {
     | "duplicate_section"
     | "unrecognized_status"
     | "unrecognized_priority"
+    | "unrecognized_type"
     | "broken_dependency";
   message: string;
   path?: string;

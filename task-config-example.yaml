@@ -1,0 +1,70 @@
+# Example task-config.yaml — replace with your own.
+# See todo-mcp-task-manager.txt for the full spec of every field below.
+
+statuses:
+  - created
+  - started
+  - review
+  - tested
+  - deployed
+  - finished
+  # "created", "started", "tested", "deployed", "finished" are reserved
+  # (always present, fixed role, not renamable). Add as many custom
+  # statuses as you want anywhere in the list, e.g. "review" above,
+  # or "blocked", "waiting-approval", etc.
+
+priorities:
+  - low
+  - medium
+  - high
+  - critical
+
+types:
+  feature:
+    sections:
+      - name: Necessità
+        description: "Perchè viene fatta al feature"
+      - name: Progetti toccati
+        description: "Che progetti evngono toccati nella repo"
+      - name: Nome feature
+        description: "Nome della feature da creare"
+      - name: File da creare
+        description: "File che verranno creati durante l'intervento"
+      - name: File modificati
+        description: "File già esistenti che verranno modificati, aggiungere chi è stato l'ultimo a toccare quella parte di codice"
+      - name: Regressioni
+        description: "Possibili regressioni"
+      - name: Test
+        description: "Test da fare"
+      - name: Cosa verrà fatto
+        description: "Cambiemnti o aggiunte che devono essere effettuate"
+      - name: Effetti
+        description: "Cosa cambia nel progetto"
+      
+
+  fix:
+    sections:
+      - name: Descrizione
+        description: "Cosa non funziona e come riprodurlo"
+      - name: Test fallito
+        description: "Se presente, il test che ha fatto scattare la correzione"
+      - name: Dipendenze
+        description: "Dipendenze da altri interventi"
+      - name: In pratica
+        description: "Il problema con esempi pratici"
+      - name: Requisiti per risolvere
+        description: "Se può essere fatto in completa autonomia dall'AI o se serve qualcosa da parte dell'utente"
+      - name: Progetti toccati
+        description: "Tutti i progetti che verranno toccati dalla feature"
+      - name: Nome feature
+        description: "Come verrà chiamata la feature su git dove verrà implementata la soluzione"
+      - name: File da creare
+        description: "File che verranno creati durante l'intervento"
+      - name: File modificati
+        description: "File già esistenti che verranno modificati, aggiungere chi è stato l'ultimo a toccare quella parte di codice"
+      - name: Regressioni
+        description: "Possibili regressioni"
+      - name: Cosa verrà fatto
+        description: "Le modifiche ai progetti"
+      - name: Effetti
+        description: "Che effetti avrà sul progetto"

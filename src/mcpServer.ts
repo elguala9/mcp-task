@@ -2,14 +2,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import * as ops from "./operations.js";
+import { toStandardError } from "./errors.js";
 
 function json(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
 
 function errorResult(err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  return { content: [{ type: "text" as const, text: message }], isError: true };
+  return { content: [{ type: "text" as const, text: JSON.stringify(toStandardError(err), null, 2) }], isError: true };
 }
 
 async function guarded<T>(fn: () => Promise<T>) {
@@ -177,21 +177,20 @@ export function createServer(projectRoot: string): McpServer {
     {
       title: "Move task",
       description:
-        "Moves a task .md file from one path to another (relative to tasks/, e.g. into/out of done/). Pure path rename: does not touch status or any other field.",
+        "Moves a task .md file from one path to another (relative to tasks/, e.g. into/out of done/). Pure path rename: never touches status, never renames based on title, and fails on a destination collision. Rewrites the 'dependencies' list of every other task that referenced the old path.",
       inputSchema: { path: z.string(), to: z.string().describe("Destination path, relative to tasks/") },
     },
     async ({ path, to }) => guarded(() => ops.moveTask(projectRoot, path, to))
   );
 
   server.registerTool(
-    "get_next_task",
+    "get_task_config",
     {
-      title: "Get next task",
-      description:
-        'Returns the highest-priority "created" task in tasks/ (never tasks/done/) whose dependencies are all finished, or null if none qualify.',
+      title: "Get task config",
+      description: "Returns the general task-config.yaml configuration (statuses, priorities, types/sections).",
       inputSchema: {},
     },
-    async () => guarded(() => ops.getNextTask(projectRoot))
+    async () => guarded(() => ops.getTaskConfig(projectRoot))
   );
 
   server.registerTool(
