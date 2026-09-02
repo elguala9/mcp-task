@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { RESERVED_STATUSES } from "./types.js";
+import { TaskManagerError } from "./errors.js";
 import type { TaskConfig, SectionDef, TypeDef } from "./types.js";
 
 const CONFIG_FILENAME = "task-config.yaml";
@@ -26,19 +27,23 @@ function ensureReservedStatuses(statuses: unknown): string[] {
 function normalizeSections(sections: unknown, seenNames: Set<string>, typeName: string): SectionDef[] | undefined {
   if (sections === undefined || sections === null) return undefined;
   if (!Array.isArray(sections)) {
-    throw new Error(`Invalid "sections" for type "${typeName}": expected a list`);
+    throw new TaskManagerError("invalid_config", `Invalid "sections" for type "${typeName}": expected a list`);
   }
   return sections.map((raw) => normalizeSection(raw, seenNames, typeName));
 }
 
 function normalizeSection(raw: unknown, seenNames: Set<string>, typeName: string): SectionDef {
   if (typeof raw !== "object" || raw === null || !("name" in raw)) {
-    throw new Error(`Invalid section entry for type "${typeName}": each section needs a "name"`);
+    throw new TaskManagerError(
+      "invalid_config",
+      `Invalid section entry for type "${typeName}": each section needs a "name"`
+    );
   }
   const obj = raw as Record<string, unknown>;
   const name = String(obj.name);
   if (seenNames.has(name)) {
-    throw new Error(
+    throw new TaskManagerError(
+      "invalid_config",
       `Duplicate section name "${name}" for type "${typeName}": section names must be unique within a type, regardless of nesting level`
     );
   }
@@ -53,7 +58,8 @@ function normalizeSection(raw: unknown, seenNames: Set<string>, typeName: string
 
 function normalizeTypes(types: unknown): Record<string, TypeDef> {
   if (types === undefined || types === null) return {};
-  if (typeof types !== "object") throw new Error('Invalid "types" in task-config.yaml: expected a map');
+  if (typeof types !== "object")
+    throw new TaskManagerError("invalid_config", 'Invalid "types" in task-config.yaml: expected a map');
   const result: Record<string, TypeDef> = {};
   for (const [typeName, def] of Object.entries(types as Record<string, unknown>)) {
     const defObj = (def ?? {}) as Record<string, unknown>;
@@ -82,6 +88,16 @@ export async function loadConfig(projectRoot: string): Promise<TaskConfig> {
     priorities: Array.isArray(data.priorities) ? data.priorities.map((p) => String(p)) : [],
     types: normalizeTypes(data.types),
   };
+}
+
+/**
+ * Loads and validates task-config.yaml, throwing a standardized
+ * TaskManagerError if it is malformed. Every operation entry point calls
+ * this first, so a broken config is caught before any command runs, not
+ * only when a command happens to touch the fields that are wrong.
+ */
+export async function validateConfig(projectRoot: string): Promise<TaskConfig> {
+  return loadConfig(projectRoot);
 }
 
 export function tasksDir(projectRoot: string): string {
