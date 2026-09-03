@@ -184,6 +184,17 @@ export function createServer(projectRoot: string): McpServer {
   );
 
   server.registerTool(
+    "init_config",
+    {
+      title: "Init config",
+      description:
+        "Creates task-config.yaml from the packaged example template if it doesn't already exist. Fails with 'collision' if it exists, unless force is set.",
+      inputSchema: { force: z.boolean().optional().describe("Overwrite an existing task-config.yaml") },
+    },
+    async ({ force }) => guarded(() => ops.initConfig(projectRoot, { force }))
+  );
+
+  server.registerTool(
     "get_task_config",
     {
       title: "Get task config",

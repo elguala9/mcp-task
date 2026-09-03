@@ -40,8 +40,9 @@ Add this to the client's MCP config (`claude_desktop_config.json`,
 
 `--project` can be omitted if you set the `MCP_TASK_PROJECT_ROOT` environment
 variable instead. The project directory needs a `tasks/` folder (created for
-you on first `create_task`) and, optionally, a `task-config.yaml` — copy
-[`task-config-example.yaml`](./task-config-example.yaml) as a starting point.
+you on first `create_task`) and, optionally, a `task-config.yaml` — run
+`init-config` (CLI) or the `init_config` tool to create one from
+[`task-config-example.yaml`](./task-config-example.yaml), or copy it by hand.
 
 ### From a local clone (no network fetch at all)
 
@@ -82,10 +83,10 @@ use `node dist/index.js ...` from a local clone.
 ## Tools
 
 `create_task`, `list_tasks`, `get_task`, `get_section`,
-`get_task_description`, `get_task_config`, `check_task`, `fix_task`,
-`update_task`, `update_section`, `append_to_section`, `delete_task`,
-`move_task`, `start_task`, `test_task`, `deploy_task`, `end_task`,
-`change_status`.
+`get_task_description`, `get_task_config`, `init_config`, `check_task`,
+`fix_task`, `update_task`, `update_section`, `append_to_section`,
+`delete_task`, `move_task`, `start_task`, `test_task`, `deploy_task`,
+`end_task`, `change_status`.
 
 Every failure returns `{ ok: false, error: { code, message } }` with a
 stable `code` (`not_found`, `collision`, `unknown_status`, `unknown_type`,
