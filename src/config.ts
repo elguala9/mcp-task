@@ -1,11 +1,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { RESERVED_STATUSES } from "./types.js";
 import { TaskManagerError } from "./errors.js";
 import type { TaskConfig, SectionDef, TypeDef } from "./types.js";
 
 const CONFIG_FILENAME = "task-config.yaml";
+const EXAMPLE_CONFIG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "task-config-example.yaml");
 
 function defaultConfig(): TaskConfig {
   return {
@@ -98,6 +100,27 @@ export async function loadConfig(projectRoot: string): Promise<TaskConfig> {
  */
 export async function validateConfig(projectRoot: string): Promise<TaskConfig> {
   return loadConfig(projectRoot);
+}
+
+/**
+ * Creates task-config.yaml from the packaged example template. Fails with
+ * "collision" if the file already exists, unless `force` is set.
+ */
+export async function initConfig(projectRoot: string, options: { force?: boolean } = {}): Promise<{ path: string }> {
+  const configPath = path.join(projectRoot, CONFIG_FILENAME);
+  if (!options.force) {
+    try {
+      await fs.access(configPath);
+      throw new TaskManagerError("collision", `${CONFIG_FILENAME} already exists at ${configPath}`);
+    } catch (err) {
+      if (err instanceof TaskManagerError) throw err;
+      // ENOENT: no existing file, fall through and create it.
+    }
+  }
+  const template = await fs.readFile(EXAMPLE_CONFIG_PATH, "utf8");
+  await fs.mkdir(projectRoot, { recursive: true });
+  await fs.writeFile(configPath, template, "utf8");
+  return { path: configPath };
 }
 
 export function tasksDir(projectRoot: string): string {
