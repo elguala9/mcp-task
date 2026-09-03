@@ -186,6 +186,17 @@ export function buildCli(projectRoot: string): Command {
     });
 
   program
+    .command("init-config")
+    .option("--force", "overwrite an existing task-config.yaml", false)
+    .action(async (opts) => {
+      try {
+        print(await ops.initConfig(projectRoot, { force: opts.force }));
+      } catch (err) {
+        fail(err);
+      }
+    });
+
+  program
     .command("get-task-config")
     .action(async () => {
       try {
