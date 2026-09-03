@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { validateConfig, tasksDir } from "./config.js";
+import { validateConfig, tasksDir, initConfig as initConfigFile } from "./config.js";
 import { slugify } from "./slug.js";
 import { parseFrontmatter, serializeFile } from "./frontmatter.js";
 import {
@@ -47,6 +47,11 @@ export async function getConfig(projectRoot: string): Promise<TaskConfig> {
 
 /** Alias exposed to CLI/MCP under the tool name `get_task_config`. */
 export const getTaskConfig = getConfig;
+
+/** Creates task-config.yaml from the packaged example, if it doesn't already exist. */
+export async function initConfig(projectRoot: string, options: { force?: boolean } = {}): Promise<{ path: string }> {
+  return initConfigFile(projectRoot, options);
+}
 
 async function readRawTask(projectRoot: string, relPath: string) {
   const normalized = normalizeTaskPath(relPath);
