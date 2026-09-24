@@ -9,14 +9,6 @@ import type { TaskConfig, SectionDef, TypeDef } from "./types.js";
 const CONFIG_FILENAME = "task-config.yaml";
 const EXAMPLE_CONFIG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "task-config-example.yaml");
 
-function defaultConfig(): TaskConfig {
-  return {
-    statuses: [...RESERVED_STATUSES],
-    priorities: [],
-    types: {},
-  };
-}
-
 function ensureReservedStatuses(statuses: unknown): string[] {
   const list = Array.isArray(statuses) ? statuses.map((s) => String(s)) : [];
   const merged = [...list];
@@ -72,18 +64,25 @@ function normalizeTypes(types: unknown): Record<string, TypeDef> {
   return result;
 }
 
-export async function loadConfig(projectRoot: string): Promise<TaskConfig> {
+/**
+ * Reads task-config.yaml from `projectRoot` and creates it from the packaged
+ * template first if it doesn't exist yet, so every operation always has a
+ * config file on disk to work against instead of silently falling back to
+ * an in-memory default that the user never sees.
+ */
+async function readOrCreateConfigFile(projectRoot: string): Promise<string> {
   const configPath = path.join(projectRoot, CONFIG_FILENAME);
-  let raw: string;
   try {
-    raw = await fs.readFile(configPath, "utf8");
+    return await fs.readFile(configPath, "utf8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return defaultConfig();
-    }
-    throw err;
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
+  await initConfig(projectRoot);
+  return fs.readFile(configPath, "utf8");
+}
 
+export async function loadConfig(projectRoot: string): Promise<TaskConfig> {
+  const raw = await readOrCreateConfigFile(projectRoot);
   const data = (yaml.load(raw) ?? {}) as Record<string, unknown>;
   return {
     statuses: ensureReservedStatuses(data.statuses),

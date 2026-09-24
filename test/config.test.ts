@@ -1,15 +1,28 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { loadConfig } from "../src/config.js";
 import { makeProject, cleanup, SAMPLE_CONFIG } from "./testUtils.js";
 
-test("loadConfig returns reserved-only defaults when task-config.yaml is missing", async () => {
+test("loadConfig creates task-config.yaml from the packaged template when it's missing", async () => {
   const root = await makeProject("defaults-when-missing");
   try {
+    const configPath = path.join(root, "task-config.yaml");
+    await assert.rejects(() => fs.access(configPath)); // not on disk yet
+
     const config = await loadConfig(root);
-    assert.deepEqual(config.statuses, ["created", "started", "tested", "deployed", "finished"]);
-    assert.deepEqual(config.priorities, []);
-    assert.deepEqual(config.types, {});
+    for (const reserved of ["created", "started", "tested", "deployed", "finished"]) {
+      assert.ok(config.statuses.includes(reserved));
+    }
+    assert.ok(config.priorities.length > 0);
+    assert.ok(Object.keys(config.types).length > 0);
+
+    await fs.access(configPath); // now created on disk
+
+    // a second call reads the file just created instead of recreating it
+    const again = await loadConfig(root);
+    assert.deepEqual(again, config);
   } finally {
     await cleanup(root);
   }

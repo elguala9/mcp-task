@@ -22,49 +22,71 @@ priorities:
 types:
   feature:
     sections:
-      - name: Necessità
-        description: "Perchè viene fatta al feature"
-      - name: Progetti toccati
-        description: "Che progetti evngono toccati nella repo"
-      - name: Nome feature
-        description: "Nome della feature da creare"
-      - name: File da creare
-        description: "File che verranno creati durante l'intervento"
-      - name: File modificati
-        description: "File già esistenti che verranno modificati, aggiungere chi è stato l'ultimo a toccare quella parte di codice"
-      - name: Regressioni
-        description: "Possibili regressioni"
+      - name: Related RFC
+        description: "Which RFC (if any) this feature implements or refers to, e.g. \"rfc/some-proposal.md\""
+      - name: Need
+        description: "Why this feature is being built"
+      - name: Projects affected
+        description: "Which projects in the repo are touched"
+      - name: Feature name
+        description: "Name of the feature to build"
+      - name: Files to create
+        description: "Files that will be created during the work"
+      - name: Files changed
+        description: "Existing files that will be modified; note who last touched that part of the code"
+      - name: Regressions
+        description: "Possible regressions"
       - name: Test
-        description: "Test da fare"
-      - name: Cosa verrà fatto
-        description: "Cambiemnti o aggiunte che devono essere effettuate"
-      - name: Effetti
-        description: "Cosa cambia nel progetto"
-      
+        description: "Tests to write/run"
+      - name: What will be done
+        description: "Changes or additions to be made"
+      - name: Effects
+        description: "What changes in the project"
 
   fix:
     sections:
-      - name: Descrizione
-        description: "Cosa non funziona e come riprodurlo"
-      - name: Test fallito
-        description: "Se presente, il test che ha fatto scattare la correzione"
-      - name: Dipendenze
-        description: "Dipendenze da altri interventi"
-      - name: In pratica
-        description: "Il problema con esempi pratici"
-      - name: Requisiti per risolvere
-        description: "Se può essere fatto in completa autonomia dall'AI o se serve qualcosa da parte dell'utente"
-      - name: Progetti toccati
-        description: "Tutti i progetti che verranno toccati dalla feature"
-      - name: Nome feature
-        description: "Come verrà chiamata la feature su git dove verrà implementata la soluzione"
-      - name: File da creare
-        description: "File che verranno creati durante l'intervento"
-      - name: File modificati
-        description: "File già esistenti che verranno modificati, aggiungere chi è stato l'ultimo a toccare quella parte di codice"
-      - name: Regressioni
-        description: "Possibili regressioni"
-      - name: Cosa verrà fatto
-        description: "Le modifiche ai progetti"
-      - name: Effetti
-        description: "Che effetti avrà sul progetto"
+      - name: Related RFC
+        description: "Which RFC (if any) this fix implements or refers to, e.g. \"rfc/some-proposal.md\""
+      - name: Description
+        description: "What's broken and how to reproduce it"
+      - name: Failing test
+        description: "The test that caught the bug, if any"
+      - name: Dependencies
+        description: "Dependencies on other work"
+      - name: In practice
+        description: "The problem with concrete examples"
+      - name: Requirements to fix
+        description: "Whether the AI can do this fully autonomously or needs something from the user"
+      - name: Projects affected
+        description: "All projects touched by the fix"
+      - name: Feature name
+        description: "Branch/feature name under which the fix will be implemented"
+      - name: Files to create
+        description: "Files that will be created during the work"
+      - name: Files changed
+        description: "Existing files that will be modified; note who last touched that part of the code"
+      - name: Regressions
+        description: "Possible regressions"
+      - name: What will be done
+        description: "The changes to the projects"
+      - name: Effects
+        description: "What effects this has on the project"
+
+  rfc:
+    sections:
+      - name: Abstract
+        description: "Short summary of what this RFC proposes"
+      - name: Terminology
+        description: "States that MUST, MUST NOT, SHOULD, SHOULD NOT, MAY are to be interpreted as described in RFC 2119"
+      - name: Motivation
+        description: "Why this is needed, what problem it solves"
+      - name: Specification
+        description: "What the implementation MUST, SHOULD, or MAY do, in a verifiable way"
+      - name: Rationale
+        description: "Why this approach was chosen over alternatives"
+      - name: Backwards Compatibility
+        description: "Impact on existing code/behavior and any breaking changes"
+      - name: Security Considerations
+        description: "Security implications of the proposal, if any"
+      - name: References
+        description: "Related documents, tasks, or RFCs"
