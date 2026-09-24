@@ -30,6 +30,7 @@ export function buildCli(projectRoot: string): Command {
     .option("--priority <priority>")
     .option("--status <status>")
     .option("--dependencies <paths>", "comma-separated list of dependency paths")
+    .option("--based-on <paths>", "comma-separated list of paths this task is derived from")
     .action(async (opts) => {
       try {
         print(
@@ -39,6 +40,7 @@ export function buildCli(projectRoot: string): Command {
             priority: opts.priority,
             status: opts.status,
             dependencies: list(opts.dependencies),
+            based_on: list(opts.basedOn),
           })
         );
       } catch (err) {
@@ -126,6 +128,7 @@ export function buildCli(projectRoot: string): Command {
     .option("--priority <priority>")
     .option("--tags <tags>", "comma-separated")
     .option("--dependencies <paths>", "comma-separated")
+    .option("--based-on <paths>", "comma-separated")
     .action(async (path, opts) => {
       try {
         print(
@@ -136,6 +139,7 @@ export function buildCli(projectRoot: string): Command {
               priority: opts.priority,
               tags: list(opts.tags),
               dependencies: list(opts.dependencies),
+              based_on: list(opts.basedOn),
             },
           })
         );

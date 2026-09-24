@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { validateConfig, tasksDir, initConfig as initConfigFile } from "./config.js";
 import { slugify } from "./slug.js";
 import { parseFrontmatter, serializeFile } from "./frontmatter.js";
@@ -107,6 +108,7 @@ export interface CreateTaskInput {
   priority?: string;
   status?: string;
   dependencies?: string[];
+  based_on?: string[];
 }
 
 export async function createTask(projectRoot: string, input: CreateTaskInput): Promise<TaskSummary> {
@@ -157,11 +159,23 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
     }
   }
 
+  const basedOn = input.based_on ?? [];
+  for (const source of basedOn) {
+    const resolved = await resolveDependencyLocation(projectRoot, source);
+    if (!resolved) {
+      throw new TaskManagerError(
+        "unresolved_based_on",
+        `based_on "${source}" does not point to an existing task (checked tasks/ and tasks/done/).`
+      );
+    }
+  }
+
   const typeDef = config.types[type];
   const body = generateSectionsMarkdown(typeDef?.sections, 2);
 
   const now = new Date().toISOString();
   const frontmatter: TaskFrontmatter = {
+    id: randomUUID(),
     title,
     type,
     status,
@@ -170,6 +184,7 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
   };
   if (priority !== undefined) frontmatter.priority = priority;
   if (dependencies.length > 0) frontmatter.dependencies = dependencies;
+  if (basedOn.length > 0) frontmatter.based_on = basedOn;
 
   const activeAbs = absolutePathFor(projectRoot, relPath);
   await writeRawTask(activeAbs, frontmatter, body);
@@ -350,6 +365,13 @@ export async function checkTask(projectRoot: string, relPath: string): Promise<C
     const resolved = await resolveDependencyLocation(projectRoot, dep);
     if (!resolved) {
       issues.push({ type: "broken_dependency", message: `Dependency "${dep}" does not exist`, path: dep });
+    }
+  }
+
+  for (const source of frontmatter.based_on ?? []) {
+    const resolved = await resolveDependencyLocation(projectRoot, source);
+    if (!resolved) {
+      issues.push({ type: "broken_based_on", message: `based_on "${source}" does not exist`, path: source });
     }
   }
 
@@ -604,11 +626,11 @@ export async function deleteTask(projectRoot: string, relPath: string): Promise<
 // ---------------------------------------------------------------------------
 
 /**
- * Isolated, reusable method: rewrites the `dependencies` list of every other
- * task (active and done) that references `oldPath`, pointing it at
- * `newPath` instead. Used by move_task so a rename never leaves the rest of
- * the backlog with a dangling/stale dependency path. Returns the paths of
- * the tasks it updated.
+ * Isolated, reusable method: rewrites the `dependencies` and `based_on`
+ * lists of every other task (active and done) that references `oldPath`,
+ * pointing it at `newPath` instead. Used by move_task so a rename never
+ * leaves the rest of the backlog with a dangling/stale path. Returns the
+ * paths of the tasks it updated.
  */
 async function updateDependencyReferences(
   projectRoot: string,
@@ -623,10 +645,14 @@ async function updateDependencyReferences(
     const raw = await fs.readFile(abs, "utf8");
     const { frontmatter, body } = parseFrontmatter(raw);
     const deps = frontmatter.dependencies;
-    if (!deps || !deps.includes(oldPath)) continue;
+    const basedOn = frontmatter.based_on;
+    const hasDep = deps?.includes(oldPath) ?? false;
+    const hasBasedOn = basedOn?.includes(oldPath) ?? false;
+    if (!hasDep && !hasBasedOn) continue;
     const newFrontmatter: TaskFrontmatter = {
       ...frontmatter,
-      dependencies: deps.map((d) => (d === oldPath ? newPath : d)),
+      ...(hasDep ? { dependencies: deps!.map((d) => (d === oldPath ? newPath : d)) } : {}),
+      ...(hasBasedOn ? { based_on: basedOn!.map((d) => (d === oldPath ? newPath : d)) } : {}),
       updated_at: new Date().toISOString(),
     };
     await writeRawTask(abs, newFrontmatter, body);

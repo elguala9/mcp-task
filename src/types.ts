@@ -18,6 +18,7 @@ export interface TaskConfig {
 }
 
 export interface TaskFrontmatter {
+  id: string;
   title: string;
   type: string;
   status: string;
@@ -26,6 +27,7 @@ export interface TaskFrontmatter {
   updated_at: string;
   tags?: string[];
   dependencies?: string[];
+  based_on?: string[];
   [key: string]: unknown;
 }
 
@@ -58,7 +60,8 @@ export interface CheckIssue {
     | "unrecognized_status"
     | "unrecognized_priority"
     | "unrecognized_type"
-    | "broken_dependency";
+    | "broken_dependency"
+    | "broken_based_on";
   message: string;
   path?: string;
 }
