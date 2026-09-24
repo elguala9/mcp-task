@@ -11,6 +11,7 @@ export type TaskManagerErrorCode =
   | "unknown_priority"
   | "unknown_type"
   | "unresolved_dependency"
+  | "unresolved_based_on"
   | "invalid_config"
   | "invalid_operation";
 

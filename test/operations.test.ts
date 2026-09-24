@@ -54,6 +54,26 @@ test("create_task validates dependencies exist", (t) =>
     );
   }));
 
+test("create_task validates based_on paths exist", (t) =>
+  withProject(t, async (root) => {
+    await assert.rejects(
+      () => ops.createTask(root, { title: "Derived", type: "bug", based_on: ["ghost.md"] }),
+      /does not point to an existing task/
+    );
+  }));
+
+test("create_task stores based_on when it points to existing tasks", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Original", type: "bug" });
+    const task = await ops.createTask(root, {
+      title: "Derived task",
+      type: "bug",
+      based_on: ["original.md"],
+    });
+    const full = await ops.getTask(root, task.path);
+    assert.deepEqual(full.frontmatter.based_on, ["original.md"]);
+  }));
+
 test("create_task rejects unknown status/priority/type", (t) =>
   withProject(t, async (root) => {
     await assert.rejects(
@@ -181,6 +201,21 @@ test("check_task flags unrecognized status/priority and broken dependencies", (t
     assert.deepEqual(types, ["broken_dependency", "unrecognized_status"]);
   }));
 
+test("check_task flags a broken based_on reference", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Derived", type: "bug" });
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    const file = path.join(root, "tasks", "derived.md");
+    let raw = await fs.readFile(file, "utf8");
+    raw = raw.replace("type: bug\n", "type: bug\nbased_on:\n  - nonexistent.md\n");
+    await fs.writeFile(file, raw, "utf8");
+
+    const report = await ops.checkTask(root, "derived.md");
+    const types = report.issues.map((i) => i.type);
+    assert.deepEqual(types, ["broken_based_on"]);
+  }));
+
 test("fix_task refuses to touch a file with non-additive issues", (t) =>
   withProject(t, async (root) => {
     await ops.createTask(root, { title: "Ghosted", type: "bug" });
@@ -302,6 +337,18 @@ test("move_task rewrites dependencies of every other task referencing the old pa
     assert.deepEqual(refactor.frontmatter.dependencies, ["ci-setup.md"]);
     const search = await ops.getTask(root, "add-search.md");
     assert.deepEqual(search.frontmatter.dependencies, ["ci-setup.md"]);
+  }));
+
+test("move_task rewrites based_on of every other task referencing the old path", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Setup CI", type: "fix" });
+    await ops.createTask(root, { title: "Refactor API", type: "feature", based_on: ["setup-ci.md"] });
+
+    const moved = await ops.moveTask(root, "setup-ci.md", "ci-setup.md");
+    assert.deepEqual(moved.updatedDependents, ["refactor-api.md"]);
+
+    const refactor = await ops.getTask(root, "refactor-api.md");
+    assert.deepEqual(refactor.frontmatter.based_on, ["ci-setup.md"]);
   }));
 
 test("get_task_config returns the general statuses/priorities/types configuration", (t) =>

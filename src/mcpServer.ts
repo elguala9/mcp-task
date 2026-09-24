@@ -43,6 +43,10 @@ export function createServer(projectRoot: string): McpServer {
           .array(z.string())
           .optional()
           .describe("Paths (relative to tasks/) of tasks that must be finished first"),
+        based_on: z
+          .array(z.string())
+          .optional()
+          .describe("Paths (relative to tasks/) of tasks this task is derived from (not a dependency)"),
       },
     },
     async (args) => guarded(() => ops.createTask(projectRoot, args))
@@ -134,6 +138,7 @@ export function createServer(projectRoot: string): McpServer {
         title: z.string().optional(),
         tags: z.array(z.string()).optional(),
         dependencies: z.array(z.string()).optional(),
+        based_on: z.array(z.string()).optional(),
         sections: z.array(sectionUpdateSchema).optional(),
       },
     },
