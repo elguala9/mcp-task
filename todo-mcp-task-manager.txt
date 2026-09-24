@@ -48,9 +48,14 @@ con nomi quasi identici e confondibili tra loro.
 
 2. CONFIGURAZIONE (task-config.yaml)
 --------------------------------------
-File opzionale nella root del progetto. Se manca, il markdown sarà
-vuoto (nessuna struttura di sections imposta, nessun type/status/
-priority configurato oltre a un default minimo).
+File nella root del progetto. Ogni operazione (sia CLI che tool MCP) lo
+cerca prima di fare qualunque altra cosa; se non esiste ancora, viene
+creato automaticamente a partire dal template pacchettizzato
+(task-config-example.yaml) e poi usato normalmente, invece di procedere
+con una configurazione vuota tenuta solo in memoria. Il tool dedicato
+init_config resta comunque disponibile per crearlo esplicitamente (o
+sovrascriverlo con force), utile quando si vuole partire dal template
+prima ancora di lanciare il primo comando.
 
 statuses:
   - created
@@ -173,6 +178,7 @@ sia in fase di validazione (check_task, vedi punto 5).
 3. FORMATO DI UN FILE TASK
 ----------------------------
 ---
+id: "a1b2c3d4-e5f6-4789-a012-3456789abcde"
 title: "Refactor API layer"
 type: feature
 status: started
@@ -198,8 +204,13 @@ Testo libero in markdown.
   - [ ] sotto-punto ricorsivo
     - [ ] sotto-sotto-punto
 
-Nessun campo "id" nel frontmatter: il task e' identificato solo dal
-percorso/nome del file (vedi punto 1).
+CAMPO "id": ogni task ha un id UUID (v4), generato automaticamente da
+create_task e scritto nel frontmatter. E' un campo puramente informativo:
+il task resta identificato univocamente dal suo percorso/nome file (vedi
+punto 1), non dall'id. L'id non serve ancora a nulla nelle operazioni
+attuali (nessuna operazione lo usa come input), e' generato solo per uso
+futuro. Non essendo un id numerico progressivo, non richiede nessuna
+logica di sequenza/riutilizzo da mantenere (vedi anche punto 7).
 
 CAMPO "dependencies": lista di percorsi (relativi a tasks/, stesso
 formato usato per identificare i task, es. "fix-login-bug.md" o
@@ -515,9 +526,11 @@ server si aspetta di leggere.
   direttamente al momento della chiamata. Semplicita' e robustezza
   prima di tutto: se abbiamo pochi task, scansionare la cartella ogni
   volta e' piu' che sufficiente, non serve ottimizzare.
-- NESSUN ID NUMERICO: ogni task e' identificato univocamente dal suo
-  percorso file (vedi punto 1). Nessuna logica di generazione/
-  riutilizzo di id da mantenere.
+- NESSUN ID NUMERICO USATO PER L'IDENTIFICAZIONE: ogni task e'
+  identificato univocamente dal suo percorso file (vedi punto 1), non da
+  un numero progressivo. Il task ha comunque un campo "id" (UUID v4,
+  vedi punto 3), generato una volta alla creazione e mai piu' rigenerato
+  o riutilizzato: nessuna logica di sequenza da mantenere.
 - I file .md restano leggibili e modificabili a mano in qualsiasi
   momento con qualunque editor, senza rompere nulla.
 - Tipi, priorita' e sezioni sono tutti liberamente configurabili da

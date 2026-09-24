@@ -1,10 +1,13 @@
 {
-  "name": "@elguala9/mcp-task",
+  "name": "@elguala/mcp-task",
   "version": "0.1.0",
   "description": "Local MCP server + CLI for managing development tasks as Markdown files, no database required",
   "type": "module",
   "license": "MIT",
   "author": "Luca Gualandi",
+  "publishConfig": {
+    "access": "public"
+  },
   "homepage": "https://github.com/elguala9/mcp-task#readme",
   "repository": {
     "type": "git",
