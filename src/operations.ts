@@ -88,6 +88,76 @@ async function resolveDependencyLocation(projectRoot: string, depPath: string): 
   return null;
 }
 
+/**
+ * Reads the `group` of every linked task that can be resolved, keyed by its
+ * resolved path. Links that don't resolve (broken dependency/based_on) or
+ * that resolve to a task with no group set are omitted, since an unset group
+ * never conflicts with anything.
+ */
+async function resolveLinkedGroups(projectRoot: string, links: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (const link of links) {
+    const resolved = await resolveDependencyLocation(projectRoot, link);
+    if (!resolved) continue;
+    const raw = await fs.readFile(absolutePathFor(projectRoot, resolved), "utf8");
+    const { frontmatter } = parseFrontmatter(raw);
+    const group = frontmatter.group;
+    if (group !== undefined && group !== null && String(group).trim().length > 0) {
+      map.set(resolved, String(group));
+    }
+  }
+  return map;
+}
+
+/**
+ * Enforces the group invariant: two tasks joined by a dependency/based_on
+ * link can never carry different (both-defined) group values. `linkedGroups`
+ * is the resolved group of each of this task's own links (see
+ * resolveLinkedGroups). Returns the group the task should end up with: an
+ * explicit `ownGroup` wins when compatible; otherwise a single group shared
+ * by all links is inherited automatically, so a task doesn't need `group`
+ * set manually just because everything it points at agrees on one.
+ */
+function reconcileGroup(ownGroup: string | undefined, linkedGroups: Map<string, string>): string | undefined {
+  const distinct = new Set(linkedGroups.values());
+  if (distinct.size > 1) {
+    const detail = [...linkedGroups.entries()].map(([p, g]) => `${p} (group "${g}")`).join(", ");
+    throw new TaskManagerError(
+      "group_conflict",
+      `Cannot reconcile group: linked tasks already belong to different groups: ${detail}`
+    );
+  }
+  const inherited = distinct.size === 1 ? [...distinct][0] : undefined;
+  if (inherited !== undefined && ownGroup !== undefined && ownGroup !== inherited) {
+    const detail = [...linkedGroups.entries()].map(([p, g]) => `${p} (group "${g}")`).join(", ");
+    throw new TaskManagerError(
+      "group_conflict",
+      `group "${ownGroup}" conflicts with the group of linked task(s): ${detail}`
+    );
+  }
+  return ownGroup ?? inherited;
+}
+
+/** Every other task (active or done) whose dependencies/based_on reference `targetPath`. */
+async function findReferencingTasks(
+  projectRoot: string,
+  targetPath: string
+): Promise<{ path: string; group?: string }[]> {
+  const allPaths = [...(await listActiveTaskPaths(projectRoot)), ...(await listDoneTaskPaths(projectRoot))];
+  const results: { path: string; group?: string }[] = [];
+  for (const relPath of allPaths) {
+    if (relPath === targetPath) continue;
+    const raw = await fs.readFile(absolutePathFor(projectRoot, relPath), "utf8");
+    const { frontmatter } = parseFrontmatter(raw);
+    const deps = frontmatter.dependencies ?? [];
+    const basedOn = frontmatter.based_on ?? [];
+    if (deps.includes(targetPath) || basedOn.includes(targetPath)) {
+      results.push({ path: relPath, group: frontmatter.group ? String(frontmatter.group) : undefined });
+    }
+  }
+  return results;
+}
+
 function toSummary(relPath: string, fm: TaskFrontmatter): TaskSummary {
   return {
     path: relPath,
@@ -95,6 +165,7 @@ function toSummary(relPath: string, fm: TaskFrontmatter): TaskSummary {
     status: String(fm.status ?? ""),
     priority: fm.priority ? String(fm.priority) : undefined,
     type: String(fm.type ?? ""),
+    group: fm.group ? String(fm.group) : undefined,
   };
 }
 
@@ -107,6 +178,7 @@ export interface CreateTaskInput {
   type: string;
   priority?: string;
   status?: string;
+  group?: string;
   dependencies?: string[];
   based_on?: string[];
 }
@@ -170,12 +242,16 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
     }
   }
 
+  const linkedGroups = await resolveLinkedGroups(projectRoot, [...dependencies, ...basedOn]);
+  const group = reconcileGroup(input.group, linkedGroups);
+
   const typeDef = config.types[type];
   const body = generateSectionsMarkdown(typeDef?.sections, 2);
 
   const now = new Date().toISOString();
   const frontmatter: TaskFrontmatter = {
     id: randomUUID(),
+    ...(group !== undefined ? { group } : {}),
     title,
     type,
     status,
@@ -200,6 +276,7 @@ export interface ListTasksFilters {
   type?: string;
   priority?: string;
   tag?: string;
+  group?: string;
   include_done?: boolean;
 }
 
@@ -220,6 +297,35 @@ export async function listTasks(projectRoot: string, filters: ListTasksFilters =
     if (filters.type && frontmatter.type !== filters.type) continue;
     if (filters.priority && frontmatter.priority !== filters.priority) continue;
     if (filters.tag && !(frontmatter.tags ?? []).includes(filters.tag)) continue;
+    if (filters.group && frontmatter.group !== filters.group) continue;
+    results.push(toSummary(relPath, frontmatter));
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// get_tasks_by_group
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns every task (active AND in tasks/done/, regardless of status)
+ * belonging to `group`. Unlike list_tasks, tasks/done/ is always included
+ * here: a group is meant to be looked up as a whole, and its tasks routinely
+ * finish (and so move to tasks/done/) at different times.
+ */
+export async function getTasksByGroup(projectRoot: string, group: string): Promise<TaskSummary[]> {
+  await getConfig(projectRoot);
+  if (!group || !group.trim()) {
+    throw new TaskManagerError("invalid_input", "group is required");
+  }
+
+  const relPaths = [...(await listActiveTaskPaths(projectRoot)), ...(await listDoneTaskPaths(projectRoot))];
+  const results: TaskSummary[] = [];
+  for (const relPath of relPaths) {
+    const abs = absolutePathFor(projectRoot, relPath);
+    const raw = await fs.readFile(abs, "utf8");
+    const { frontmatter } = parseFrontmatter(raw);
+    if (frontmatter.group !== group) continue;
     results.push(toSummary(relPath, frontmatter));
   }
   return results;
@@ -372,6 +478,21 @@ export async function checkTask(projectRoot: string, relPath: string): Promise<C
     const resolved = await resolveDependencyLocation(projectRoot, source);
     if (!resolved) {
       issues.push({ type: "broken_based_on", message: `based_on "${source}" does not exist`, path: source });
+    }
+  }
+
+  const ownGroup = frontmatter.group !== undefined ? String(frontmatter.group) : undefined;
+  if (ownGroup !== undefined) {
+    const links = [...(frontmatter.dependencies ?? []), ...(frontmatter.based_on ?? [])];
+    const linkedGroups = await resolveLinkedGroups(projectRoot, links);
+    for (const [linkPath, linkGroup] of linkedGroups) {
+      if (linkGroup !== ownGroup) {
+        issues.push({
+          type: "group_mismatch",
+          message: `group "${ownGroup}" differs from linked task "${linkPath}"'s group "${linkGroup}"`,
+          path: linkPath,
+        });
+      }
     }
   }
 
@@ -551,6 +672,11 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
   );
   const mergedFrontmatter: TaskFrontmatter = { ...current.frontmatter, ...providedFrontmatter };
 
+  // An explicit empty string clears the group rather than setting a blank one.
+  if (input.frontmatter?.group !== undefined && String(input.frontmatter.group).trim() === "") {
+    delete mergedFrontmatter.group;
+  }
+
   if (input.frontmatter?.status !== undefined && !config.statuses.includes(String(mergedFrontmatter.status))) {
     throw new TaskManagerError(
       "unknown_status",
@@ -566,6 +692,32 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
       "unknown_priority",
       `Unknown priority "${mergedFrontmatter.priority}". Defined priorities: ${config.priorities.join(", ")}`
     );
+  }
+
+  const mergedGroup = mergedFrontmatter.group !== undefined ? String(mergedFrontmatter.group) : undefined;
+  const mergedLinks = [...(mergedFrontmatter.dependencies ?? []), ...(mergedFrontmatter.based_on ?? [])];
+  if (mergedLinks.length > 0) {
+    const linkedGroups = await resolveLinkedGroups(projectRoot, mergedLinks);
+    const reconciled = reconcileGroup(mergedGroup, linkedGroups);
+    if (reconciled !== undefined) mergedFrontmatter.group = reconciled;
+  }
+
+  // The forward check above only covers this task's own links. If `group` is
+  // itself being changed, tasks that link back to this one (via their own
+  // dependencies/based_on) were validated against the *old* value at their
+  // own create/update time, so they must be re-checked against the new one.
+  if (input.frontmatter?.group !== undefined) {
+    const finalGroup = mergedFrontmatter.group !== undefined ? String(mergedFrontmatter.group) : undefined;
+    if (finalGroup !== undefined) {
+      const referencing = await findReferencingTasks(projectRoot, current.relPath);
+      const conflicting = referencing.find((r) => r.group !== undefined && r.group !== finalGroup);
+      if (conflicting) {
+        throw new TaskManagerError(
+          "group_conflict",
+          `group "${finalGroup}" conflicts with the group "${conflicting.group}" of linked task "${conflicting.path}"`
+        );
+      }
+    }
   }
 
   mergedFrontmatter.updated_at = new Date().toISOString();

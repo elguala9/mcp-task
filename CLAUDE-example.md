@@ -59,6 +59,23 @@ sections at any time in `task-config.yaml`.
   values, broken dependencies) needs a manual fix, and `fix_task` will
   refuse to touch the file rather than guess.
 
+## Groups
+
+A task can carry a `group` id, right below `id` in its frontmatter. A
+group is a set of related tasks: any two tasks joined by `dependencies`
+or `based_on` can never end up with different (both-set) `group`
+values — `create_task` and `update_task` enforce this and reject the
+call with `group_conflict` if it would happen. You rarely need to set
+`group` by hand: creating a task with a `dependencies`/`based_on` link
+to an already-grouped task inherits that group automatically. `check_task`
+reports a mismatch (`group_mismatch`) if a file was edited by hand into
+an inconsistent state. To fetch every task in a group at once, use
+`get_tasks_by_group` — it always searches both `tasks/` and
+`tasks/done/`, since a group's tasks usually finish at different times
+(unlike `list_tasks`, which excludes `tasks/done/` by default). `list_tasks`
+also accepts a `group` filter if you just want to narrow a broader
+search.
+
 ## Renaming or reorganizing a task
 
 Use `move_task` (never rewrite the frontmatter `path` by hand — there is
@@ -83,12 +100,12 @@ rather than expecting the server to auto-suffix it.
 Every tool returns `{ ok: false, error: { code, message } }` on
 failure — check `code` to branch on the failure kind (e.g.
 `unresolved_dependency`, `collision`, `unknown_status`, `unknown_type`,
-`not_found`) instead of pattern-matching `message`, which is only for
-display.
+`group_conflict`, `not_found`) instead of pattern-matching `message`,
+which is only for display.
 
 ## Tool reference
 
-`create_task`, `list_tasks`, `get_task`, `get_section`,
+`create_task`, `list_tasks`, `get_tasks_by_group`, `get_task`, `get_section`,
 `get_task_description`, `get_task_config`, `check_task`, `fix_task`,
 `update_task`, `update_section`, `append_to_section`, `delete_task`,
 `move_task`, `start_task`, `test_task`, `deploy_task`, `end_task`,

@@ -39,6 +39,12 @@ export function createServer(projectRoot: string): McpServer {
         type: z.string().describe("Task type; determines which sections tree from task-config.yaml is used"),
         priority: z.string().optional().describe("Defaults to the first configured priority"),
         status: z.string().optional().describe('Defaults to "created"'),
+        group: z
+          .string()
+          .optional()
+          .describe(
+            "Group id. Tasks linked by dependencies/based_on must share the same group; if omitted and the linked tasks already agree on one, it is inherited automatically."
+          ),
         dependencies: z
           .array(z.string())
           .optional()
@@ -62,10 +68,22 @@ export function createServer(projectRoot: string): McpServer {
         type: z.string().optional(),
         priority: z.string().optional(),
         tag: z.string().optional(),
+        group: z.string().optional(),
         include_done: z.boolean().optional().describe("Include tasks/done/ (default false)"),
       },
     },
     async (args) => guarded(() => ops.listTasks(projectRoot, args))
+  );
+
+  server.registerTool(
+    "get_tasks_by_group",
+    {
+      title: "Get tasks by group",
+      description:
+        "Returns every task belonging to the given group id, searching both tasks/ and tasks/done/ (a group's tasks routinely finish at different times, so tasks/done/ is always included here, unlike list_tasks).",
+      inputSchema: { group: z.string().describe("The group id to search for") },
+    },
+    async ({ group }) => guarded(() => ops.getTasksByGroup(projectRoot, group))
   );
 
   server.registerTool(
@@ -137,6 +155,7 @@ export function createServer(projectRoot: string): McpServer {
         priority: z.string().optional(),
         title: z.string().optional(),
         tags: z.array(z.string()).optional(),
+        group: z.string().optional().describe('Group id; pass "" to clear it'),
         dependencies: z.array(z.string()).optional(),
         based_on: z.array(z.string()).optional(),
         sections: z.array(sectionUpdateSchema).optional(),

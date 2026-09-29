@@ -29,6 +29,7 @@ export function buildCli(projectRoot: string): Command {
     .requiredOption("--type <type>", "task type")
     .option("--priority <priority>")
     .option("--status <status>")
+    .option("--group <group>", "group id; tasks linked by dependencies/based_on must share one")
     .option("--dependencies <paths>", "comma-separated list of dependency paths")
     .option("--based-on <paths>", "comma-separated list of paths this task is derived from")
     .action(async (opts) => {
@@ -39,6 +40,7 @@ export function buildCli(projectRoot: string): Command {
             type: opts.type,
             priority: opts.priority,
             status: opts.status,
+            group: opts.group,
             dependencies: list(opts.dependencies),
             based_on: list(opts.basedOn),
           })
@@ -54,6 +56,7 @@ export function buildCli(projectRoot: string): Command {
     .option("--type <type>")
     .option("--priority <priority>")
     .option("--tag <tag>")
+    .option("--group <group>")
     .option("--include-done", "also list tasks/done/", false)
     .action(async (opts) => {
       try {
@@ -63,9 +66,20 @@ export function buildCli(projectRoot: string): Command {
             type: opts.type,
             priority: opts.priority,
             tag: opts.tag,
+            group: opts.group,
             include_done: opts.includeDone,
           })
         );
+      } catch (err) {
+        fail(err);
+      }
+    });
+
+  program
+    .command("get-tasks-by-group <group>")
+    .action(async (group) => {
+      try {
+        print(await ops.getTasksByGroup(projectRoot, group));
       } catch (err) {
         fail(err);
       }
@@ -127,6 +141,7 @@ export function buildCli(projectRoot: string): Command {
     .option("--status <status>")
     .option("--priority <priority>")
     .option("--tags <tags>", "comma-separated")
+    .option("--group <group>", 'group id; pass "" to clear it')
     .option("--dependencies <paths>", "comma-separated")
     .option("--based-on <paths>", "comma-separated")
     .action(async (path, opts) => {
@@ -138,6 +153,7 @@ export function buildCli(projectRoot: string): Command {
               status: opts.status,
               priority: opts.priority,
               tags: list(opts.tags),
+              group: opts.group,
               dependencies: list(opts.dependencies),
               based_on: list(opts.basedOn),
             },

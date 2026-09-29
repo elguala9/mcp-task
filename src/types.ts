@@ -19,6 +19,7 @@ export interface TaskConfig {
 
 export interface TaskFrontmatter {
   id: string;
+  group?: string;
   title: string;
   type: string;
   status: string;
@@ -37,6 +38,7 @@ export interface TaskSummary {
   status: string;
   priority?: string;
   type: string;
+  group?: string;
 }
 
 export interface TaskFull {
@@ -61,7 +63,8 @@ export interface CheckIssue {
     | "unrecognized_priority"
     | "unrecognized_type"
     | "broken_dependency"
-    | "broken_based_on";
+    | "broken_based_on"
+    | "group_mismatch";
   message: string;
   path?: string;
 }
