@@ -2,7 +2,7 @@
 
 A local MCP server + CLI for managing development tasks as plain Markdown
 files. No database, no separate index: each task is a `.md` file under
-`tasks/`, identified only by its path — read straight off disk on every
+`.task_manager/tasks/`, identified only by its path — read straight off disk on every
 call, so hand-editing a file with any editor is always safe and immediately
 visible to the next tool call.
 
@@ -39,7 +39,7 @@ Add this to the client's MCP config (`claude_desktop_config.json`,
 ```
 
 `--project` can be omitted if you set the `MCP_TASK_PROJECT_ROOT` environment
-variable instead. The project directory needs a `tasks/` folder (created for
+variable instead. The project directory needs a `.task_manager/tasks/` folder (created for
 you on first `create_task`) and, optionally, a `task-config.yaml` — run
 `init-config` (CLI) or the `init_config` tool to create one from
 [`task-config-example.yaml`](./task-config-example.yaml), or copy it by hand.

@@ -26,7 +26,7 @@ export async function makeProject(label: string, configYaml?: string): Promise<s
   const id = crypto.randomBytes(3).toString("hex");
   const dirName = `${String(counter).padStart(3, "0")}-${slugForDir(label)}-${id}`;
   const root = path.join(SANDBOX_ROOT, dirName);
-  await fs.mkdir(path.join(root, "tasks"), { recursive: true });
+  await fs.mkdir(path.join(root, ".task_manager", "tasks"), { recursive: true });
   if (configYaml !== undefined) {
     await fs.writeFile(path.join(root, "task-config.yaml"), configYaml, "utf8");
   }
@@ -67,12 +67,12 @@ types:
 `;
 
 export async function readRawFile(root: string, relPath: string): Promise<string> {
-  return fs.readFile(path.join(root, "tasks", relPath), "utf8");
+  return fs.readFile(path.join(root, ".task_manager", "tasks", relPath), "utf8");
 }
 
 export async function fileExistsAt(root: string, relPath: string): Promise<boolean> {
   try {
-    await fs.access(path.join(root, "tasks", relPath));
+    await fs.access(path.join(root, ".task_manager", "tasks", relPath));
     return true;
   } catch {
     return false;

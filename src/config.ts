@@ -122,14 +122,16 @@ export async function initConfig(projectRoot: string, options: { force?: boolean
   return { path: configPath };
 }
 
+export const DATA_DIRNAME = ".task_manager";
+
 export function tasksDir(projectRoot: string): string {
-  return path.join(projectRoot, "tasks");
+  return path.join(projectRoot, DATA_DIRNAME, "tasks");
 }
 
 export function groupsDir(projectRoot: string): string {
-  return path.join(projectRoot, "groups");
+  return path.join(projectRoot, DATA_DIRNAME, "groups");
 }
 
 export function doneDir(projectRoot: string): string {
-  return path.join(projectRoot, "tasks", "done");
+  return path.join(projectRoot, DATA_DIRNAME, "tasks", "done");
 }

@@ -1,15 +1,15 @@
 # Task manager — instructions for the AI agent (example, replace with your own)
 
 This project's development tasks are managed by an MCP server (this repo)
-that exposes tools over `tasks/*.md` files. There is no database and no
+that exposes tools over `.task_manager/tasks/*.md` files. There is no database and no
 separate index: each task is a single Markdown file, identified only by
-its path relative to `tasks/`. If a human edits a file by hand, the next
+its path relative to `.task_manager/tasks/`. If a human edits a file by hand, the next
 tool call sees the change immediately — nothing is cached.
 
-Use the MCP tools below instead of reading/editing `tasks/**/*.md`
+Use the MCP tools below instead of reading/editing `.task_manager/tasks/**/*.md`
 directly with your own file tools: they enforce the section structure
 defined in `task-config.yaml`, validate status/priority values, keep
-`updated_at` correct, and move files to/from `tasks/done/` consistently.
+`updated_at` correct, and move files to/from `.task_manager/tasks/done/` consistently.
 
 ## Before doing anything: know the config
 
@@ -22,11 +22,11 @@ sections at any time in `task-config.yaml`.
 
 1. `list_tasks` with `status: "created"` to see unstarted work (add
    `type`/`priority`/`tag` filters as needed). `include_done: true` also
-   pulls in `tasks/done/`, which is excluded by default.
+   pulls in `.task_manager/tasks/done/`, which is excluded by default.
 2. For a candidate task, `get_task` to read it in full, and check its
    `dependencies` field: every path listed there must itself have
    `status: "finished"` before you start (check with `get_task` on each
-   dependency — it can be located either in `tasks/` or `tasks/done/`)
+   dependency — it can be located either in `.task_manager/tasks/` or `.task_manager/tasks/done/`)
    before you start work on it. Nothing in the server blocks you from
    starting a blocked task anyway — this is a convention you must apply
    yourself, not an enforced rule.
@@ -47,7 +47,7 @@ sections at any time in `task-config.yaml`.
   `title` changes. It also refuses to change `type`: if the task turns
   out to be the wrong type, create a new task of the right type instead.
 - `test_task` / `deploy_task` when applicable, `end_task` when finished
-  (moves the file into `tasks/done/` automatically — you never move it
+  (moves the file into `.task_manager/tasks/done/` automatically — you never move it
   yourself for a status change). For a status your project defined
   itself in `task-config.yaml` (not one of the five reserved ones), use
   `change_status`.
@@ -70,13 +70,13 @@ call with `group_conflict` if it would happen. You rarely need to set
 to an already-grouped task inherits that group automatically. `check_task`
 reports a mismatch (`group_mismatch`) if a file was edited by hand into
 an inconsistent state. To fetch every task in a group at once, use
-`get_tasks_by_group` — it always searches both `tasks/` and
-`tasks/done/`, since a group's tasks usually finish at different times
-(unlike `list_tasks`, which excludes `tasks/done/` by default). `list_tasks`
+`get_tasks_by_group` — it always searches both `.task_manager/tasks/` and
+`.task_manager/tasks/done/`, since a group's tasks usually finish at different times
+(unlike `list_tasks`, which excludes `.task_manager/tasks/done/` by default). `list_tasks`
 also accepts a `group` filter if you just want to narrow a broader
 search.
 
-Each group also has an info file, `groups/<group>.md` (outside `tasks/`), created
+Each group also has an info file, `.task_manager/groups/<group>.md` (outside `.task_manager/tasks/`), created
 automatically the first time a group id is used. Put context shared by
 the whole group there (goal, constraints, decisions) instead of repeating
 it in every task: read it with `get_group_info` and replace its body with
@@ -99,7 +99,7 @@ empty. `type` must be one of the types defined in `task-config.yaml`
 (check `get_task_config` if unsure) — an unrecognized one is rejected
 with `unknown_type`, just like an unrecognized `status`/`priority`. If
 the title's derived filename collides with an existing task
-(active or in `tasks/done/`), creation fails; pick a different title
+(active or in `.task_manager/tasks/done/`), creation fails; pick a different title
 rather than expecting the server to auto-suffix it.
 
 ## Errors
