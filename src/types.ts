@@ -74,3 +74,11 @@ export interface CheckReport {
   ok: boolean;
   issues: CheckIssue[];
 }
+
+export interface GroupInfo {
+  group: string;
+  path: string;
+  created_at: string;
+  updated_at: string;
+  body: string;
+}

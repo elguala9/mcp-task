@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { validateConfig, tasksDir, initConfig as initConfigFile } from "./config.js";
+import { validateConfig, tasksDir, groupsDir, initConfig as initConfigFile } from "./config.js";
 import { slugify } from "./slug.js";
 import { parseFrontmatter, serializeFile } from "./frontmatter.js";
 import {
@@ -34,6 +34,7 @@ import type {
   CheckIssue,
   CheckReport,
   SectionDef,
+  GroupInfo,
 } from "./types.js";
 
 /**
@@ -158,6 +159,89 @@ async function findReferencingTasks(
   return results;
 }
 
+// ---------------------------------------------------------------------------
+// group info files (groups/<group>.md)
+// ---------------------------------------------------------------------------
+
+const GROUP_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+const GROUP_INFO_TEMPLATE = "## Overview\n\n## Shared context\n\n## Decisions";
+
+/** A group id doubles as a filename, so it must be filename-safe. */
+function assertValidGroupId(group: string): void {
+  if (!GROUP_ID_PATTERN.test(group)) {
+    throw new TaskManagerError(
+      "invalid_input",
+      `Invalid group id "${group}": use only letters, digits, ".", "_" and "-", starting with a letter or digit.`
+    );
+  }
+}
+
+function groupInfoAbs(projectRoot: string, group: string): string {
+  return path.join(groupsDir(projectRoot), `${group}.md`);
+}
+
+function serializeGroupInfo(fm: { group: string; created_at: string; updated_at: string }, body: string): string {
+  return serializeFile(fm as unknown as TaskFrontmatter, body);
+}
+
+/**
+ * Creates groups/<group>.md the first time a group is used, so information
+ * shared by all its tasks lives in one place instead of being repeated in
+ * each task. An existing file is never touched.
+ */
+async function ensureGroupInfo(projectRoot: string, group: string): Promise<void> {
+  const abs = groupInfoAbs(projectRoot, group);
+  if (await fileExists(abs)) return;
+  const now = new Date().toISOString();
+  await ensureDirFor(abs);
+  const content = serializeGroupInfo({ group, created_at: now, updated_at: now }, GROUP_INFO_TEMPLATE);
+  try {
+    await fs.writeFile(abs, content, { encoding: "utf8", flag: "wx" });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+  }
+}
+
+async function readGroupInfo(projectRoot: string, group: string): Promise<GroupInfo> {
+  assertValidGroupId(group);
+  let raw: string;
+  try {
+    raw = await fs.readFile(groupInfoAbs(projectRoot, group), "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new TaskManagerError("not_found", `No info file for group "${group}" (expected groups/${group}.md)`);
+    }
+    throw err;
+  }
+  const { frontmatter, body } = parseFrontmatter(raw);
+  const fm = frontmatter as unknown as Record<string, unknown>;
+  return {
+    group,
+    path: `groups/${group}.md`,
+    created_at: String(fm.created_at ?? ""),
+    updated_at: String(fm.updated_at ?? ""),
+    body,
+  };
+}
+
+/** Returns the general-information file of a group. */
+export async function getGroupInfo(projectRoot: string, group: string): Promise<GroupInfo> {
+  await getConfig(projectRoot);
+  return readGroupInfo(projectRoot, group);
+}
+
+/** Replaces the body of a group's info file (creating the file if the group has none yet). */
+export async function updateGroupInfo(projectRoot: string, group: string, body: string): Promise<GroupInfo> {
+  await getConfig(projectRoot);
+  assertValidGroupId(group);
+  await ensureGroupInfo(projectRoot, group);
+  const current = await readGroupInfo(projectRoot, group);
+  const fm = { group, created_at: current.created_at, updated_at: new Date().toISOString() };
+  await fs.writeFile(groupInfoAbs(projectRoot, group), serializeGroupInfo(fm, body), "utf8");
+  return readGroupInfo(projectRoot, group);
+}
+
 function toSummary(relPath: string, fm: TaskFrontmatter): TaskSummary {
   return {
     path: relPath,
@@ -243,6 +327,7 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
   }
 
   const linkedGroups = await resolveLinkedGroups(projectRoot, [...dependencies, ...basedOn]);
+  if (input.group !== undefined) assertValidGroupId(input.group);
   const group = reconcileGroup(input.group, linkedGroups);
 
   const typeDef = config.types[type];
@@ -264,6 +349,7 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
 
   const activeAbs = absolutePathFor(projectRoot, relPath);
   await writeRawTask(activeAbs, frontmatter, body);
+  if (group !== undefined) await ensureGroupInfo(projectRoot, group);
   return toSummary(relPath, frontmatter);
 }
 
@@ -675,6 +761,8 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
   // An explicit empty string clears the group rather than setting a blank one.
   if (input.frontmatter?.group !== undefined && String(input.frontmatter.group).trim() === "") {
     delete mergedFrontmatter.group;
+  } else if (input.frontmatter?.group !== undefined) {
+    assertValidGroupId(String(input.frontmatter.group));
   }
 
   if (input.frontmatter?.status !== undefined && !config.statuses.includes(String(mergedFrontmatter.status))) {
@@ -730,6 +818,7 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
   const newRelPath = await relocateIfNeeded(projectRoot, current.relPath, String(oldStatus), mergedFrontmatter.status);
   const newAbs = absolutePathFor(projectRoot, newRelPath);
   await writeRawTask(newAbs, mergedFrontmatter, body);
+  if (mergedFrontmatter.group !== undefined) await ensureGroupInfo(projectRoot, String(mergedFrontmatter.group));
 
   return { path: newRelPath, frontmatter: mergedFrontmatter, sections: toSectionTree(body) };
 }

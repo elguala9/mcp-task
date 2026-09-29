@@ -126,6 +126,10 @@ export function tasksDir(projectRoot: string): string {
   return path.join(projectRoot, "tasks");
 }
 
+export function groupsDir(projectRoot: string): string {
+  return path.join(projectRoot, "groups");
+}
+
 export function doneDir(projectRoot: string): string {
   return path.join(projectRoot, "tasks", "done");
 }

@@ -87,6 +87,31 @@ export function createServer(projectRoot: string): McpServer {
   );
 
   server.registerTool(
+    "get_group_info",
+    {
+      title: "Get group info",
+      description:
+        "Returns the general-information file (groups/<group>.md) of a group: context shared by all its tasks, so it isn't repeated in each task. The file is created automatically the first time a group is used.",
+      inputSchema: { group: z.string().describe("The group id") },
+    },
+    async ({ group }) => guarded(() => ops.getGroupInfo(projectRoot, group))
+  );
+
+  server.registerTool(
+    "update_group_info",
+    {
+      title: "Update group info",
+      description:
+        "Replaces the whole body of a group's info file. Read it with get_group_info first and send back the full new body.",
+      inputSchema: {
+        group: z.string().describe("The group id"),
+        body: z.string().describe("Full new Markdown body (frontmatter is managed by the server)"),
+      },
+    },
+    async ({ group, body }) => guarded(() => ops.updateGroupInfo(projectRoot, group, body))
+  );
+
+  server.registerTool(
     "get_task",
     {
       title: "Get task",
