@@ -76,6 +76,13 @@ an inconsistent state. To fetch every task in a group at once, use
 also accepts a `group` filter if you just want to narrow a broader
 search.
 
+Each group also has an info file, `groups/<group>.md` (outside `tasks/`), created
+automatically the first time a group id is used. Put context shared by
+the whole group there (goal, constraints, decisions) instead of repeating
+it in every task: read it with `get_group_info` and replace its body with
+`update_group_info`. Group ids may only contain letters, digits, `.`,
+`_` and `-`, since they are used as filenames.
+
 ## Renaming or reorganizing a task
 
 Use `move_task` (never rewrite the frontmatter `path` by hand — there is

@@ -86,6 +86,26 @@ export function buildCli(projectRoot: string): Command {
     });
 
   program
+    .command("get-group-info <group>")
+    .action(async (group) => {
+      try {
+        print(await ops.getGroupInfo(projectRoot, group));
+      } catch (err) {
+        fail(err);
+      }
+    });
+
+  program
+    .command("update-group-info <group> <body>")
+    .action(async (group, body) => {
+      try {
+        print(await ops.updateGroupInfo(projectRoot, group, body));
+      } catch (err) {
+        fail(err);
+      }
+    });
+
+  program
     .command("get-task <path>")
     .action(async (path) => {
       try {
