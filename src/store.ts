@@ -40,7 +40,7 @@ export async function fileExists(absPath: string): Promise<boolean> {
 /**
  * Isolated collision guard reused wherever a task name must be unique across
  * the whole namespace: throws if `relPath` already exists either as an
- * active task (tasks/) or as an archived one (tasks/done/), regardless of
+ * active task (.task_manager/tasks/) or as an archived one (.task_manager/tasks/done/), regardless of
  * which of the two the caller is about to write to.
  */
 export async function assertNoCollision(projectRoot: string, relPath: string): Promise<void> {
@@ -51,12 +51,12 @@ export async function assertNoCollision(projectRoot: string, relPath: string): P
   if ((await fileExists(activeAbs)) || (await fileExists(doneAbs))) {
     throw new TaskManagerError(
       "collision",
-      `A task named "${bareRelPath}" already exists (checked tasks/ and tasks/done/). Choose a different name.`
+      `A task named "${bareRelPath}" already exists (checked .task_manager/tasks/ and .task_manager/tasks/done/). Choose a different name.`
     );
   }
 }
 
-/** Finds an existing task by relative path, checking both tasks/ and tasks/done/ placements. */
+/** Finds an existing task by relative path, checking both .task_manager/tasks/ and .task_manager/tasks/done/ placements. */
 export async function findExistingTaskPath(projectRoot: string, relPath: string): Promise<string | null> {
   const abs = absolutePathFor(projectRoot, relPath);
   if (await fileExists(abs)) return normalizeTaskPath(relPath);
@@ -85,7 +85,7 @@ async function walkMarkdownFiles(dir: string, base: string): Promise<string[]> {
   return results;
 }
 
-/** Lists active task relative paths (tasks/ only, excluding done/). */
+/** Lists active task relative paths (.task_manager/tasks/ only, excluding done/). */
 export async function listActiveTaskPaths(projectRoot: string): Promise<string[]> {
   return walkMarkdownFiles(tasksDir(projectRoot), "");
 }

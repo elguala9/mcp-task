@@ -14,21 +14,21 @@ async function withProject(t: TestContext, fn: (root: string) => Promise<void>):
   }
 }
 
-const infoPath = (root: string, group: string) => path.join(root, "groups", `${group}.md`);
+const infoPath = (root: string, group: string) => path.join(root, ".task_manager", "groups", `${group}.md`);
 
 test("create_task with a new group creates groups/<group>.md", (t) =>
   withProject(t, async (root) => {
     await ops.createTask(root, { title: "A", type: "bug", group: "epic-1" });
     const info = await ops.getGroupInfo(root, "epic-1");
     assert.equal(info.group, "epic-1");
-    assert.equal(info.path, "groups/epic-1.md");
+    assert.equal(info.path, ".task_manager/groups/epic-1.md");
     assert.match(info.body, /## Overview/);
   }));
 
 test("group info file is not created for tasks without a group", (t) =>
   withProject(t, async (root) => {
     await ops.createTask(root, { title: "A", type: "bug" });
-    await assert.rejects(fs.access(path.join(root, "groups")));
+    await assert.rejects(fs.access(path.join(root, ".task_manager", "groups")));
   }));
 
 test("group info file is not listed as a task", (t) =>

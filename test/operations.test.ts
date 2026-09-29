@@ -132,7 +132,7 @@ test("check_task detects a section removed by hand, and fix_task restores it add
     const withoutNote = raw.replace(/## Note\n\n/, "");
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    await fs.writeFile(path.join(root, "tasks", "add-dark-mode.md"), withoutNote, "utf8");
+    await fs.writeFile(path.join(root, ".task_manager", "tasks", "add-dark-mode.md"), withoutNote, "utf8");
 
     const report = await ops.checkTask(root, "add-dark-mode.md");
     assert.equal(report.ok, false);
@@ -155,7 +155,7 @@ test("fix_task restores a missing middle section in its configured position, not
     const withoutNote = raw.replace(/## Note\n\n/, ""); // "Note" is the middle section: Descrizione, Note, Checklist
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    await fs.writeFile(path.join(root, "tasks", "add-dark-mode.md"), withoutNote, "utf8");
+    await fs.writeFile(path.join(root, ".task_manager", "tasks", "add-dark-mode.md"), withoutNote, "utf8");
 
     await ops.fixTask(root, "add-dark-mode.md");
     const task = await ops.getTask(root, "add-dark-mode.md");
@@ -172,7 +172,7 @@ test("fix_task restores a missing first section in position, ahead of the rest",
     const withoutDescrizione = raw.replace(/## Descrizione\n\n### Sottosezione1\n\n/, "");
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    await fs.writeFile(path.join(root, "tasks", "add-dark-mode.md"), withoutDescrizione, "utf8");
+    await fs.writeFile(path.join(root, ".task_manager", "tasks", "add-dark-mode.md"), withoutDescrizione, "utf8");
 
     await ops.fixTask(root, "add-dark-mode.md");
     const task = await ops.getTask(root, "add-dark-mode.md");
@@ -188,7 +188,7 @@ test("check_task flags unrecognized status/priority and broken dependencies", (t
     // simulate drift: hand-edit frontmatter to reference a status/dependency no longer valid
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    const file = path.join(root, "tasks", "ghosted.md");
+    const file = path.join(root, ".task_manager", "tasks", "ghosted.md");
     let raw = await fs.readFile(file, "utf8");
     raw = raw.replace("status: created", "status: archived").replace(
       "type: bug\n",
@@ -206,7 +206,7 @@ test("check_task flags a broken based_on reference", (t) =>
     await ops.createTask(root, { title: "Derived", type: "bug" });
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    const file = path.join(root, "tasks", "derived.md");
+    const file = path.join(root, ".task_manager", "tasks", "derived.md");
     let raw = await fs.readFile(file, "utf8");
     raw = raw.replace("type: bug\n", "type: bug\nbased_on:\n  - nonexistent.md\n");
     await fs.writeFile(file, raw, "utf8");
@@ -221,7 +221,7 @@ test("fix_task refuses to touch a file with non-additive issues", (t) =>
     await ops.createTask(root, { title: "Ghosted", type: "bug" });
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    const file = path.join(root, "tasks", "ghosted.md");
+    const file = path.join(root, ".task_manager", "tasks", "ghosted.md");
     let raw = await fs.readFile(file, "utf8");
     raw = raw.replace("status: created", "status: archived");
     await fs.writeFile(file, raw, "utf8");

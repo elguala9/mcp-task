@@ -1,4 +1,4 @@
 node_modules/
 dist/
 test/.sandbox/
-tasks
+.task_manager/tasks/

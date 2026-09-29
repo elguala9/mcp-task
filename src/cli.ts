@@ -57,7 +57,7 @@ export function buildCli(projectRoot: string): Command {
     .option("--priority <priority>")
     .option("--tag <tag>")
     .option("--group <group>")
-    .option("--include-done", "also list tasks/done/", false)
+    .option("--include-done", "also list .task_manager/tasks/done/", false)
     .action(async (opts) => {
       try {
         print(

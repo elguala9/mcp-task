@@ -33,7 +33,7 @@ export function createServer(projectRoot: string): McpServer {
     "create_task",
     {
       title: "Create task",
-      description: "Creates a new task .md file under tasks/, generating the section skeleton for its type.",
+      description: "Creates a new task .md file under .task_manager/tasks/, generating the section skeleton for its type.",
       inputSchema: {
         title: z.string().describe("Human-readable task title, used to derive the filename slug"),
         type: z.string().describe("Task type; determines which sections tree from task-config.yaml is used"),
@@ -48,11 +48,11 @@ export function createServer(projectRoot: string): McpServer {
         dependencies: z
           .array(z.string())
           .optional()
-          .describe("Paths (relative to tasks/) of tasks that must be finished first"),
+          .describe("Paths (relative to .task_manager/tasks/) of tasks that must be finished first"),
         based_on: z
           .array(z.string())
           .optional()
-          .describe("Paths (relative to tasks/) of tasks this task is derived from (not a dependency)"),
+          .describe("Paths (relative to .task_manager/tasks/) of tasks this task is derived from (not a dependency)"),
       },
     },
     async (args) => guarded(() => ops.createTask(projectRoot, args))
@@ -69,7 +69,7 @@ export function createServer(projectRoot: string): McpServer {
         priority: z.string().optional(),
         tag: z.string().optional(),
         group: z.string().optional(),
-        include_done: z.boolean().optional().describe("Include tasks/done/ (default false)"),
+        include_done: z.boolean().optional().describe("Include .task_manager/tasks/done/ (default false)"),
       },
     },
     async (args) => guarded(() => ops.listTasks(projectRoot, args))
@@ -80,7 +80,7 @@ export function createServer(projectRoot: string): McpServer {
     {
       title: "Get tasks by group",
       description:
-        "Returns every task belonging to the given group id, searching both tasks/ and tasks/done/ (a group's tasks routinely finish at different times, so tasks/done/ is always included here, unlike list_tasks).",
+        "Returns every task belonging to the given group id, searching both .task_manager/tasks/ and .task_manager/tasks/done/ (a group's tasks routinely finish at different times, so .task_manager/tasks/done/ is always included here, unlike list_tasks).",
       inputSchema: { group: z.string().describe("The group id to search for") },
     },
     async ({ group }) => guarded(() => ops.getTasksByGroup(projectRoot, group))
@@ -91,7 +91,7 @@ export function createServer(projectRoot: string): McpServer {
     {
       title: "Get group info",
       description:
-        "Returns the general-information file (groups/<group>.md) of a group: context shared by all its tasks, so it isn't repeated in each task. The file is created automatically the first time a group is used.",
+        "Returns the general-information file (.task_manager/groups/<group>.md) of a group: context shared by all its tasks, so it isn't repeated in each task. The file is created automatically the first time a group is used.",
       inputSchema: { group: z.string().describe("The group id") },
     },
     async ({ group }) => guarded(() => ops.getGroupInfo(projectRoot, group))
@@ -116,7 +116,7 @@ export function createServer(projectRoot: string): McpServer {
     {
       title: "Get task",
       description: "Returns a task's full frontmatter plus its body as a section tree.",
-      inputSchema: { path: z.string().describe('Path relative to tasks/, e.g. "fix-login-bug.md" or "done/x.md"') },
+      inputSchema: { path: z.string().describe('Path relative to .task_manager/tasks/, e.g. "fix-login-bug.md" or "done/x.md"') },
     },
     async ({ path }) => guarded(() => ops.getTask(projectRoot, path))
   );
@@ -173,7 +173,7 @@ export function createServer(projectRoot: string): McpServer {
     {
       title: "Update task",
       description:
-        "Merges frontmatter fields and/or replaces section contents. Moves the file to/from tasks/done/ when status becomes/leaves 'finished'. The 'type' field cannot be changed.",
+        "Merges frontmatter fields and/or replaces section contents. Moves the file to/from .task_manager/tasks/done/ when status becomes/leaves 'finished'. The 'type' field cannot be changed.",
       inputSchema: {
         path: z.string(),
         status: z.string().optional(),
@@ -215,7 +215,7 @@ export function createServer(projectRoot: string): McpServer {
     "delete_task",
     {
       title: "Delete task",
-      description: "Deletes a task .md file (from tasks/ or tasks/done/). Does not fix up other tasks' dependencies.",
+      description: "Deletes a task .md file (from .task_manager/tasks/ or .task_manager/tasks/done/). Does not fix up other tasks' dependencies.",
       inputSchema: { path: z.string() },
     },
     async ({ path }) => guarded(async () => (await ops.deleteTask(projectRoot, path), { deleted: path }))
@@ -226,8 +226,8 @@ export function createServer(projectRoot: string): McpServer {
     {
       title: "Move task",
       description:
-        "Moves a task .md file from one path to another (relative to tasks/, e.g. into/out of done/). Pure path rename: never touches status, never renames based on title, and fails on a destination collision. Rewrites the 'dependencies' list of every other task that referenced the old path.",
-      inputSchema: { path: z.string(), to: z.string().describe("Destination path, relative to tasks/") },
+        "Moves a task .md file from one path to another (relative to .task_manager/tasks/, e.g. into/out of done/). Pure path rename: never touches status, never renames based on title, and fails on a destination collision. Rewrites the 'dependencies' list of every other task that referenced the old path.",
+      inputSchema: { path: z.string(), to: z.string().describe("Destination path, relative to .task_manager/tasks/") },
     },
     async ({ path, to }) => guarded(() => ops.moveTask(projectRoot, path, to))
   );
@@ -275,7 +275,7 @@ export function createServer(projectRoot: string): McpServer {
     "end_task",
     {
       title: "End task",
-      description: 'Shortcut for update_task setting status to "finished" (moves the file to tasks/done/).',
+      description: 'Shortcut for update_task setting status to "finished" (moves the file to .task_manager/tasks/done/).',
       inputSchema: { path: z.string() },
     },
     async ({ path }) => guarded(() => ops.endTask(projectRoot, path))

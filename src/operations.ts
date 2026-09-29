@@ -160,7 +160,7 @@ async function findReferencingTasks(
 }
 
 // ---------------------------------------------------------------------------
-// group info files (groups/<group>.md)
+// group info files (.task_manager/groups/<group>.md)
 // ---------------------------------------------------------------------------
 
 const GROUP_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -186,7 +186,7 @@ function serializeGroupInfo(fm: { group: string; created_at: string; updated_at:
 }
 
 /**
- * Creates groups/<group>.md the first time a group is used, so information
+ * Creates .task_manager/groups/<group>.md the first time a group is used, so information
  * shared by all its tasks lives in one place instead of being repeated in
  * each task. An existing file is never touched.
  */
@@ -210,7 +210,7 @@ async function readGroupInfo(projectRoot: string, group: string): Promise<GroupI
     raw = await fs.readFile(groupInfoAbs(projectRoot, group), "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new TaskManagerError("not_found", `No info file for group "${group}" (expected groups/${group}.md)`);
+      throw new TaskManagerError("not_found", `No info file for group "${group}" (expected .task_manager/groups/${group}.md)`);
     }
     throw err;
   }
@@ -218,7 +218,7 @@ async function readGroupInfo(projectRoot: string, group: string): Promise<GroupI
   const fm = frontmatter as unknown as Record<string, unknown>;
   return {
     group,
-    path: `groups/${group}.md`,
+    path: `.task_manager/groups/${group}.md`,
     created_at: String(fm.created_at ?? ""),
     updated_at: String(fm.updated_at ?? ""),
     body,
@@ -310,7 +310,7 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
     if (!resolved) {
       throw new TaskManagerError(
         "unresolved_dependency",
-        `Dependency "${dep}" does not point to an existing task (checked tasks/ and tasks/done/).`
+        `Dependency "${dep}" does not point to an existing task (checked .task_manager/tasks/ and .task_manager/tasks/done/).`
       );
     }
   }
@@ -321,7 +321,7 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
     if (!resolved) {
       throw new TaskManagerError(
         "unresolved_based_on",
-        `based_on "${source}" does not point to an existing task (checked tasks/ and tasks/done/).`
+        `based_on "${source}" does not point to an existing task (checked .task_manager/tasks/ and .task_manager/tasks/done/).`
       );
     }
   }
@@ -394,10 +394,10 @@ export async function listTasks(projectRoot: string, filters: ListTasksFilters =
 // ---------------------------------------------------------------------------
 
 /**
- * Returns every task (active AND in tasks/done/, regardless of status)
- * belonging to `group`. Unlike list_tasks, tasks/done/ is always included
+ * Returns every task (active AND in .task_manager/tasks/done/, regardless of status)
+ * belonging to `group`. Unlike list_tasks, .task_manager/tasks/done/ is always included
  * here: a group is meant to be looked up as a whole, and its tasks routinely
- * finish (and so move to tasks/done/) at different times.
+ * finish (and so move to .task_manager/tasks/done/) at different times.
  */
 export async function getTasksByGroup(projectRoot: string, group: string): Promise<TaskSummary[]> {
   await getConfig(projectRoot);
@@ -718,7 +718,7 @@ async function relocateIfNeeded(
     const target = `${DONE_SUBDIR}/${relPath}`;
     const targetAbs = absolutePathFor(projectRoot, target);
     if (await fileExists(targetAbs)) {
-      throw new TaskManagerError("collision", `Cannot move task to tasks/done/: "${target}" already exists there.`);
+      throw new TaskManagerError("collision", `Cannot move task to .task_manager/tasks/done/: "${target}" already exists there.`);
     }
     await ensureDirFor(targetAbs);
     await fs.rename(absolutePathFor(projectRoot, relPath), targetAbs);
@@ -731,7 +731,7 @@ async function relocateIfNeeded(
     if (await fileExists(targetAbs)) {
       throw new TaskManagerError(
         "collision",
-        `Cannot move task out of tasks/done/: "${target}" already exists there.`
+        `Cannot move task out of .task_manager/tasks/done/: "${target}" already exists there.`
       );
     }
     await ensureDirFor(targetAbs);
@@ -909,7 +909,7 @@ export interface MoveTaskResult extends TaskSummary {
 /**
  * Pure path rename: moves a task .md file from one path to another. Never
  * touches `status` (path and status are independent concepts — moving a
- * file in/out of tasks/done/ this way does NOT change its status field; use
+ * file in/out of .task_manager/tasks/done/ this way does NOT change its status field; use
  * update_task/change_status for that) and never renames based on `title`.
  * Fails on a destination collision. Propagates the new path into every
  * other task's `dependencies` list via updateDependencyReferences.

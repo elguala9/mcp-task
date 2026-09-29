@@ -315,7 +315,7 @@ test("check_task reports group_mismatch when a task's group differs from a depen
     const raw = await (await import("./testUtils.js")).readRawFile(root, "base.md");
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    await fs.writeFile(path.join(root, "tasks", "base.md"), raw.replace("group: g1", "group: g2"), "utf8");
+    await fs.writeFile(path.join(root, ".task_manager", "tasks", "base.md"), raw.replace("group: g1", "group: g2"), "utf8");
 
     const report = await ops.checkTask(root, "child.md");
     assert.equal(report.ok, false);
@@ -329,7 +329,7 @@ test("check_task reports group_mismatch for a based_on source too", (t) =>
     const raw = await (await import("./testUtils.js")).readRawFile(root, "base.md");
     const { promises: fs } = await import("node:fs");
     const path = await import("node:path");
-    await fs.writeFile(path.join(root, "tasks", "base.md"), raw.replace("group: g1", "group: g2"), "utf8");
+    await fs.writeFile(path.join(root, ".task_manager", "tasks", "base.md"), raw.replace("group: g1", "group: g2"), "utf8");
 
     const report = await ops.checkTask(root, "child.md");
     assert.equal(report.ok, false);
