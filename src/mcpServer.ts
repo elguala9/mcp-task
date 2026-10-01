@@ -27,7 +27,7 @@ const sectionUpdateSchema = z.object({
 });
 
 export function createServer(projectRoot: string): McpServer {
-  const server = new McpServer({ name: "mcp-task-manager", version: "0.1.0" });
+  const server = new McpServer({ name: "mcp-task-manager", version: "0.2.0" });
 
   server.registerTool(
     "create_task",

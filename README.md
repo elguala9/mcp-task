@@ -80,13 +80,63 @@ npx -y @elguala/mcp-task list-tasks --project .
 Run `npx -y @elguala/mcp-task --help` for the full command list, or
 use `node dist/index.js ...` from a local clone.
 
-## Tools
+## API
 
-`create_task`, `list_tasks`, `get_tasks_by_group`, `get_task`, `get_section`,
-`get_task_description`, `get_task_config`, `init_config`, `check_task`,
-`fix_task`, `update_task`, `update_section`, `append_to_section`,
-`delete_task`, `move_task`,
-`end_task`, `change_status`.
+Every operation is both an MCP tool and a CLI command (`create_task` ↔
+`create-task`, ...). All paths are relative to `.task_manager/tasks/`, e.g.
+`fix-login-bug.md` or `done/setup-ci.md`. Parameters marked `?` are optional.
+A section is addressed by name, or by a `" > "`-joined path when the name
+alone is ambiguous, e.g. `Checklist > Fase 2`.
+
+### Tasks
+
+| Tool | Parameters | Description |
+| --- | --- | --- |
+| `create_task` | `title`, `type`, `priority?`, `status?`, `group?`, `dependencies?`, `based_on?` | Creates a task file with the section skeleton of its type. `status` defaults to `created`, `priority` to the first configured one. Fails on a filename collision. |
+| `list_tasks` | `status?`, `type?`, `priority?`, `tag?`, `group?`, `include_done?` | Lists tasks matching the filters. `done/` is excluded unless `include_done` is true. |
+| `get_tasks_by_group` | `group` | Every task of a group, `done/` included. |
+| `get_task` | `path` | Full frontmatter plus the body as a section tree. |
+| `update_task` | `path`, `status?`, `priority?`, `title?`, `tags?`, `group?`, `dependencies?`, `based_on?`, `sections?` | Merges frontmatter fields and/or replaces section contents (`sections` is a list of `{ path, content }`). Moves the file to/from `done/` when the status becomes/leaves `finished`. `type` cannot be changed; pass `group: ""` to clear the group. |
+| `change_status` | `path`, `status` | Sets any status defined in `task-config.yaml`. |
+| `end_task` | `path` | Sets `finished` and moves the file to `done/`. |
+| `move_task` | `path`, `to` | Pure path rename: never touches `status`, fails on a collision, rewrites other tasks' `dependencies` that pointed to the old path. |
+| `delete_task` | `path` | Deletes the file. Other tasks' dependencies are left untouched. |
+
+### Sections
+
+| Tool | Parameters | Description |
+| --- | --- | --- |
+| `get_section` | `path`, `section_path` | One section and its subsections. |
+| `update_section` | `path`, `section_path`, `content` | Overwrites one section, leaving the rest of the file untouched. |
+| `append_to_section` | `path`, `section_path`, `content` | Appends to the end of a section without rewriting it. |
+| `get_task_description` | `type`, `section_path` | The `description` configured in `task-config.yaml` for a type's section, without reading any task. |
+
+### Validation
+
+| Tool | Parameters | Description |
+| --- | --- | --- |
+| `check_task` | `path` | Validates a task against its type's configured sections. Read-only. |
+| `fix_task` | `path` | Additively adds the sections `check_task` reports as missing. Never removes or alters existing content. |
+
+### Groups
+
+| Tool | Parameters | Description |
+| --- | --- | --- |
+| `get_group_info` | `group` | Reads `.task_manager/groups/<group>.md`, the context shared by all the group's tasks. Created automatically the first time a group is used. |
+| `update_group_info` | `group`, `body` | Replaces the whole body of the group's info file. |
+
+### Configuration
+
+| Tool | Parameters | Description |
+| --- | --- | --- |
+| `get_task_config` | – | The parsed `task-config.yaml` (statuses, priorities, types/sections). |
+| `init_config` | `force?` | Creates `task-config.yaml` from the packaged template. Fails with `collision` if it exists, unless `force` is set. |
+
+### Statuses
+
+Only `created` and `finished` are built in. `finished` is terminal: it moves
+the file to `done/`. Any other status (`started`, `review`, ...) is custom:
+list it in `task-config.yaml` and set it with `change_status`.
 
 Every failure returns `{ ok: false, error: { code, message } }` with a
 stable `code` (`not_found`, `collision`, `unknown_status`, `unknown_type`,
