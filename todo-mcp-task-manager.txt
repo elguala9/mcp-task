@@ -59,30 +59,21 @@ prima ancora di lanciare il primo comando.
 
 statuses:
   - created
-  - started
-  - tested
-  - deployed
   - finished
 
-I nomi "created", "started", "tested", "deployed" e "finished" sono
+I nomi "created" e "finished" sono
 RISERVATI: hanno un ruolo speciale riconosciuto per NOME (non per
 posizione nella lista):
   - "created": status assegnato di default da create_task quando non
     se ne specifica uno diverso
-  - "started": status assegnato dalla scorciatoia start_task
-  - "tested": status assegnato dalla scorciatoia test_task
-  - "deployed": status assegnato dalla scorciatoia deploy_task
   - "finished": status TERMINALE - quando un task lo raggiunge, il
     file viene spostato in tasks/done/ (vedi punto 1); e' l'unico
     status che triggera lo spostamento
-Questi cinque nomi non sono rinominabili: sono sempre presenti con
+Questi due nomi non sono rinominabili: sono sempre presenti con
 questi nomi esatti, indipendentemente da cosa altro l'utente
-aggiunge alla lista. Sono standard di default per un workflow di
-sviluppo tipico (creato -> in lavorazione -> testato -> distribuito
--> chiuso), ma nulla vieta di non usare mai "tested" o "deployed" per
-un task che non li richiede (es. si puo' passare direttamente da
-"started" a "finished" con change_status, senza passare per forza da
-tutti gli stati intermedi).
+aggiunge alla lista. Qualsiasi altro status intermedio (es. "started",
+"review", "tested") e' personalizzato e va aggiunto in task-config.yaml;
+si imposta con change_status.
 
 L'utente puo' aggiungere QUALSIASI numero di status personalizzati
 aggiuntivi nella lista, in qualunque posizione (es. "review",
@@ -90,8 +81,7 @@ aggiuntivi nella lista, in qualunque posizione (es. "review",
   - non hanno una scorciatoia dedicata (niente review_task, ecc.)
   - si raggiungono solo tramite il tool generico change_status
     (vedi punto 5), che puo' impostare qualunque status, sia
-    personalizzato sia uno dei cinque riservati (created/started/
-    tested/deployed/finished) - quindi change_status e' una
+    personalizzato sia uno dei due riservati (created/finished) - quindi change_status e' una
     generalizzazione delle scorciatoie dedicate, non un'alternativa
     separata
   - NON triggerano mai lo spostamento in tasks/done/, che resta
@@ -408,18 +398,6 @@ get_task_config
   sono validi prima di chiamare create_task/change_status/ecc, senza
   dover leggere task-config.yaml a mano
 
-start_task
-  scorciatoia per update_task che porta lo status a "started" (nome
-  riservato, vedi punto 2)
-
-test_task
-  scorciatoia per update_task che porta lo status a "tested" (nome
-  riservato, vedi punto 2)
-
-deploy_task
-  scorciatoia per update_task che porta lo status a "deployed" (nome
-  riservato, vedi punto 2)
-
 end_task
   scorciatoia per update_task che porta lo status a "finished" (nome
   riservato, vedi punto 2), triggerando quindi anche lo spostamento
@@ -450,22 +428,20 @@ move_task
   volutamente le dipendenze rotte perché il task non esiste più da
   nessuna parte
 
-Questi quattro tool, insieme a create_task (che assegna "created"
-come status di default), coprono i cinque status riservati con una
-scorciatoia dedicata ciascuno. I nomi "created"/"started"/"tested"/
-"deployed"/"finished" non sono personalizzabili (vedi punto 2), quindi
-queste cinque scorciatoie non hanno bisogno di leggere il nome dello
-status da config: puntano sempre esattamente a quei cinque nomi
-fissi. Nessuna di queste scorciatoie impone di passare per tutti gli
+end_task, insieme a create_task (che assegna "created" come status
+di default), copre i due status riservati. I nomi "created"/"finished"
+non sono personalizzabili (vedi punto 2), quindi queste scorciatoie
+non hanno bisogno di leggere il nome dello status da config: puntano
+sempre esattamente a quei due nomi fissi. Nessuna di queste scorciatoie impone di passare per tutti gli
 stati intermedi in ordine: si puo' chiamare end_task direttamente da
 "started" (o da qualsiasi altro status) saltando "tested"/"deployed"
 se per quel task non servono.
 
 change_status
   input: percorso file, nuovo status
-  tool generico per impostare QUALSIASI status: sia uno dei cinque
-  riservati (created/started/tested/deployed/finished, agendo quindi
-  in modo equivalente a create_task/start_task/test_task/deploy_task/
+  tool generico per impostare QUALSIASI status: sia uno dei due
+  riservati (created/finished, agendo quindi
+  in modo equivalente a create_task/
   end_task per quanto riguarda il solo campo status) sia uno status
   personalizzato definito dall'utente in task-config.yaml (es.
   "review", "blocked")
@@ -536,8 +512,8 @@ server si aspetta di leggere.
 - Tipi, priorita' e sezioni sono tutti liberamente configurabili da
   task-config.yaml, mai hard-coded nel codice. Gli status sono
   configurabili SOLO per l'aggiunta di status personalizzati
-  aggiuntivi: i cinque nomi riservati "created", "started", "tested",
-  "deployed", "finished" esistono sempre con questi nomi esatti e
+  aggiuntivi: i due nomi riservati "created" e
+  "finished" esistono sempre con questi nomi esatti e
   ruoli fissi (vedi punto 2), non sono rinominabili ne' rimovibili.
 - Le sotto-sezioni vanno supportate in modo ricorsivo (nessun limite
   di profondita' arbitrario, se non quello naturale del markdown).

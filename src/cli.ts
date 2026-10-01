@@ -247,36 +247,6 @@ export function buildCli(projectRoot: string): Command {
     });
 
   program
-    .command("start-task <path>")
-    .action(async (path) => {
-      try {
-        print(await ops.startTask(projectRoot, path));
-      } catch (err) {
-        fail(err);
-      }
-    });
-
-  program
-    .command("test-task <path>")
-    .action(async (path) => {
-      try {
-        print(await ops.testTask(projectRoot, path));
-      } catch (err) {
-        fail(err);
-      }
-    });
-
-  program
-    .command("deploy-task <path>")
-    .action(async (path) => {
-      try {
-        print(await ops.deployTask(projectRoot, path));
-      } catch (err) {
-        fail(err);
-      }
-    });
-
-  program
     .command("end-task <path>")
     .action(async (path) => {
       try {

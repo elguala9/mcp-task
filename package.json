@@ -1,6 +1,7 @@
 {
   "name": "@elguala/mcp-task",
-  "version": "0.1.0",
+  "mcpName": "io.github.elguala9/mcp-task",
+  "version": "0.2.0",
   "description": "Local MCP server + CLI for managing development tasks as Markdown files, no database required",
   "type": "module",
   "license": "MIT",

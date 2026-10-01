@@ -12,9 +12,7 @@ test("loadConfig creates task-config.yaml from the packaged template when it's m
     await assert.rejects(() => fs.access(configPath)); // not on disk yet
 
     const config = await loadConfig(root);
-    for (const reserved of ["created", "started", "tested", "deployed", "finished"]) {
-      assert.ok(config.statuses.includes(reserved));
-    }
+    assert.deepEqual(config.statuses, ["created", "finished"]);
     assert.ok(config.priorities.length > 0);
     assert.ok(Object.keys(config.types).length > 0);
 
@@ -28,11 +26,11 @@ test("loadConfig creates task-config.yaml from the packaged template when it's m
   }
 });
 
-test("loadConfig always injects the 5 reserved statuses even if omitted", async () => {
+test("loadConfig always injects the 2 reserved statuses even if omitted", async () => {
   const root = await makeProject("reserved-statuses-injected", "statuses:\n  - created\n  - review\n");
   try {
     const config = await loadConfig(root);
-    for (const reserved of ["created", "started", "tested", "deployed", "finished"]) {
+    for (const reserved of ["created", "finished"]) {
       assert.ok(config.statuses.includes(reserved), `missing reserved status ${reserved}`);
     }
     assert.ok(config.statuses.includes("review"));

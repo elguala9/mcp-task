@@ -12,14 +12,14 @@ set of agent instructions on how to use the tools below correctly.
 
 ## Install
 
-Not published to the npm registry — install straight from this GitHub repo,
-or point your client at a local clone. Either way `npx` builds it on the fly
-(via the `prepare` script) the first time it's fetched.
+Published on npm as [`@elguala/mcp-task`](https://www.npmjs.com/package/@elguala/mcp-task);
+`npx` fetches it on demand, no global install needed. You can also point
+your client at a local clone (see below).
 
 ### Claude Code (CLI)
 
 ```bash
-claude mcp add task-manager -- npx -y github:elguala9/mcp-task serve --project /absolute/path/to/your/project
+claude mcp add task-manager -- npx -y @elguala/mcp-task serve --project /absolute/path/to/your/project
 ```
 
 ### Claude Desktop, Cursor, Windsurf, Cline, and any other MCP client
@@ -32,7 +32,7 @@ Add this to the client's MCP config (`claude_desktop_config.json`,
   "mcpServers": {
     "task-manager": {
       "command": "npx",
-      "args": ["-y", "github:elguala9/mcp-task", "serve", "--project", "/absolute/path/to/your/project"]
+      "args": ["-y", "@elguala/mcp-task", "serve", "--project", "/absolute/path/to/your/project"]
     }
   }
 }
@@ -73,19 +73,19 @@ Every tool is also a CLI command, useful for scripting or when working
 outside an agent:
 
 ```bash
-npx -y github:elguala9/mcp-task create-task --project . --title "Fix login bug" --type fix
-npx -y github:elguala9/mcp-task list-tasks --project .
+npx -y @elguala/mcp-task create-task --project . --title "Fix login bug" --type fix
+npx -y @elguala/mcp-task list-tasks --project .
 ```
 
-Run `npx -y github:elguala9/mcp-task --help` for the full command list, or
+Run `npx -y @elguala/mcp-task --help` for the full command list, or
 use `node dist/index.js ...` from a local clone.
 
 ## Tools
 
-`create_task`, `list_tasks`, `get_task`, `get_section`,
+`create_task`, `list_tasks`, `get_tasks_by_group`, `get_task`, `get_section`,
 `get_task_description`, `get_task_config`, `init_config`, `check_task`,
 `fix_task`, `update_task`, `update_section`, `append_to_section`,
-`delete_task`, `move_task`, `start_task`, `test_task`, `deploy_task`,
+`delete_task`, `move_task`,
 `end_task`, `change_status`.
 
 Every failure returns `{ ok: false, error: { code, message } }` with a

@@ -3,15 +3,10 @@
 
 statuses:
   - created
-  - started
-  - review
-  - tested
-  - deployed
   - finished
-  # "created", "started", "tested", "deployed", "finished" are reserved
-  # (always present, fixed role, not renamable). Add as many custom
-  # statuses as you want anywhere in the list, e.g. "review" above,
-  # or "blocked", "waiting-approval", etc.
+  # "created" and "finished" are reserved (always present, fixed role,
+  # not renamable). Add as many custom statuses as you want anywhere in
+  # the list, e.g. "started", "review", "blocked", "waiting-approval", etc.
 
 priorities:
   - low

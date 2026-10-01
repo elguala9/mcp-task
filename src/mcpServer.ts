@@ -254,24 +254,6 @@ export function createServer(projectRoot: string): McpServer {
   );
 
   server.registerTool(
-    "start_task",
-    { title: "Start task", description: 'Shortcut for update_task setting status to "started".', inputSchema: { path: z.string() } },
-    async ({ path }) => guarded(() => ops.startTask(projectRoot, path))
-  );
-
-  server.registerTool(
-    "test_task",
-    { title: "Test task", description: 'Shortcut for update_task setting status to "tested".', inputSchema: { path: z.string() } },
-    async ({ path }) => guarded(() => ops.testTask(projectRoot, path))
-  );
-
-  server.registerTool(
-    "deploy_task",
-    { title: "Deploy task", description: 'Shortcut for update_task setting status to "deployed".', inputSchema: { path: z.string() } },
-    async ({ path }) => guarded(() => ops.deployTask(projectRoot, path))
-  );
-
-  server.registerTool(
     "end_task",
     {
       title: "End task",
