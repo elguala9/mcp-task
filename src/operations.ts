@@ -942,18 +942,6 @@ export async function moveTask(projectRoot: string, fromPath: string, toPath: st
 // status shortcuts
 // ---------------------------------------------------------------------------
 
-export async function startTask(projectRoot: string, relPath: string): Promise<TaskFull> {
-  return updateTask(projectRoot, relPath, { frontmatter: { status: "started" } });
-}
-
-export async function testTask(projectRoot: string, relPath: string): Promise<TaskFull> {
-  return updateTask(projectRoot, relPath, { frontmatter: { status: "tested" } });
-}
-
-export async function deployTask(projectRoot: string, relPath: string): Promise<TaskFull> {
-  return updateTask(projectRoot, relPath, { frontmatter: { status: "deployed" } });
-}
-
 export async function endTask(projectRoot: string, relPath: string): Promise<TaskFull> {
   return updateTask(projectRoot, relPath, { frontmatter: { status: "finished" } });
 }

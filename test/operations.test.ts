@@ -359,12 +359,9 @@ test("get_task_config returns the general statuses/priorities/types configuratio
     assert.ok(config.types.feature);
   }));
 
-test("status shortcuts set the expected reserved status", (t) =>
+test("end_task sets the finished status and moves the file to done/", (t) =>
   withProject(t, async (root) => {
     await ops.createTask(root, { title: "Add dark mode", type: "feature" });
-    assert.equal((await ops.startTask(root, "add-dark-mode.md")).frontmatter.status, "started");
-    assert.equal((await ops.testTask(root, "add-dark-mode.md")).frontmatter.status, "tested");
-    assert.equal((await ops.deployTask(root, "add-dark-mode.md")).frontmatter.status, "deployed");
     const ended = await ops.endTask(root, "add-dark-mode.md");
     assert.equal(ended.frontmatter.status, "finished");
     assert.equal(ended.path, "done/add-dark-mode.md");
@@ -419,7 +416,7 @@ test("a realistic backlog of many tasks: filters, dependency chains and priority
 
     await ops.updateTask(root, "write-docs.md", { frontmatter: { tags: ["docs"] } });
     await ops.updateTask(root, "update-dependencies.md", { frontmatter: { tags: ["chore"] } });
-    await ops.startTask(root, "investigate-crash-a.md");
+    await ops.changeStatus(root, "investigate-crash-a.md", "started");
 
     await ops.endTask(root, "setup-ci.md");
     await ops.endTask(root, "setup-logging.md");

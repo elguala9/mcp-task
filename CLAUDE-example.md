@@ -35,7 +35,8 @@ sections at any time in `task-config.yaml`.
 
 ## Working a task
 
-- `start_task` when you begin (sets `status: started`).
+- When you begin, optionally `change_status` to a custom in-progress status if your
+  `task-config.yaml` defines one (the only built-in statuses are `created` and `finished`).
 - Read/update its sections with `get_section`, `update_section`
   (overwrites a section/subsection fully) and `append_to_section` (adds
   to the end without rewriting the rest — use this for checklists and
@@ -46,10 +47,10 @@ sections at any time in `task-config.yaml`.
   renames the file — the task's path never changes just because its
   `title` changes. It also refuses to change `type`: if the task turns
   out to be the wrong type, create a new task of the right type instead.
-- `test_task` / `deploy_task` when applicable, `end_task` when finished
+- `end_task` when finished
   (moves the file into `.task_manager/tasks/done/` automatically — you never move it
   yourself for a status change). For a status your project defined
-  itself in `task-config.yaml` (not one of the five reserved ones), use
+  itself in `task-config.yaml` (not one of the two reserved ones), use
   `change_status`.
 - Before calling a task done, run `check_task` — it reports missing
   sections, duplicate section names, unrecognized status/priority
@@ -115,6 +116,6 @@ which is only for display.
 `create_task`, `list_tasks`, `get_tasks_by_group`, `get_task`, `get_section`,
 `get_task_description`, `get_task_config`, `check_task`, `fix_task`,
 `update_task`, `update_section`, `append_to_section`, `delete_task`,
-`move_task`, `start_task`, `test_task`, `deploy_task`, `end_task`,
+`move_task`, `end_task`,
 `change_status`. Every one of these also exists as a CLI command (see
 `todo-mcp-task-manager.txt`) for a human to run outside the agent.

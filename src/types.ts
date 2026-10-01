@@ -1,4 +1,4 @@
-export const RESERVED_STATUSES = ["created", "started", "tested", "deployed", "finished"] as const;
+export const RESERVED_STATUSES = ["created", "finished"] as const;
 export type ReservedStatus = (typeof RESERVED_STATUSES)[number];
 
 export interface SectionDef {
