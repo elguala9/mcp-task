@@ -445,3 +445,140 @@ test("a realistic backlog of many tasks: filters, dependency chains and priority
     const refactorApi = await ops.getTask(root, "refactor-api.md");
     assert.equal(refactorApi.frontmatter.status, "created");
   }));
+
+test("optional sections are not generated, not reported missing and not restored by fix_task", async (t) => {
+  const config = "types:\n  feature:\n    sections:\n      - name: Need\n      - name: Extra\n        presence: Optional\n      - name: Effects\n";
+  const root = await makeProject(t.name, config);
+  try {
+    await ops.createTask(root, { title: "Opt", type: "feature" });
+    const raw = await readRawFile(root, "opt.md");
+    assert.ok(raw.includes("## Need") && raw.includes("## Effects"));
+    assert.ok(!raw.includes("## Extra"));
+    assert.equal((await ops.checkTask(root, "opt.md")).ok, true);
+
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(path.join(root, ".task_manager", "tasks", "opt.md"), raw.replace("## Effects", "## Extra\n\n## Effects").replace(/## Need\n\n/, ""), "utf8");
+    assert.equal((await ops.checkTask(root, "opt.md")).issues.length, 1); // only Need is missing
+    await ops.fixTask(root, "opt.md");
+    assert.equal((await ops.checkTask(root, "opt.md")).ok, true);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("check_task fails on a feature task whose body has no sections at all", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const frontmatterOnly = raw.slice(0, raw.indexOf("\n---", 3) + 4) + "\n";
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(path.join(root, ".task_manager", "tasks", "add-dark-mode.md"), frontmatterOnly, "utf8");
+
+    const report = await ops.checkTask(root, "add-dark-mode.md");
+    assert.equal(report.ok, false);
+    assert.deepEqual(
+      report.issues.map((i) => [i.type, i.path]),
+      [
+        ["missing_section", "Descrizione"],
+        ["missing_section", "Note"],
+        ["missing_section", "Checklist"],
+      ]
+    );
+  }));
+
+test("check_task reports a missing nested section when its parent is present", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(
+      path.join(root, ".task_manager", "tasks", "add-dark-mode.md"),
+      raw.replace("### Sottosezione1\n\n", ""),
+      "utf8"
+    );
+    const report = await ops.checkTask(root, "add-dark-mode.md");
+    assert.equal(report.ok, false);
+    assert.deepEqual(
+      report.issues.map((i) => [i.type, i.path]),
+      [["missing_section", "Descrizione > Sottosezione1"]]
+    );
+  }));
+
+test("check_task passes on a task with no body when its type defines no sections", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Free form", type: "bug" });
+    const report = await ops.checkTask(root, "free-form.md");
+    assert.equal(report.ok, true);
+  }));
+
+test("check_task treats an unmarked section as mandatory and a marked Optional one as skippable", async (t) => {
+  const config =
+    "types:\n  feature:\n    sections:\n      - name: Need\n      - name: Extra\n        presence: Optional\n        sections:\n          - name: Detail\n";
+  const root = await makeProject(t.name, config);
+  try {
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    const file = path.join(root, ".task_manager", "tasks", "t.md");
+    await ops.createTask(root, { title: "T", type: "feature" });
+    const raw = await readRawFile(root, "t.md");
+    const head = raw.slice(0, raw.indexOf("\n---", 3) + 4);
+
+    // no body at all: only the unmarked section is reported
+    await fs.writeFile(file, head + "\n", "utf8");
+    let report = await ops.checkTask(root, "t.md");
+    assert.deepEqual(report.issues.map((i) => i.path), ["Need"]);
+
+    // Optional section present: its mandatory child is now required
+    await fs.writeFile(file, head + "\n## Need\n\n## Extra\n", "utf8");
+    report = await ops.checkTask(root, "t.md");
+    assert.deepEqual(report.issues.map((i) => i.path), ["Extra > Detail"]);
+
+    await fs.writeFile(file, head + "\n## Need\n\n## Extra\n\n### Detail\n", "utf8");
+    assert.equal((await ops.checkTask(root, "t.md")).ok, true);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("fix_task on a body-less feature task restores every mandatory section", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    await fs.writeFile(
+      path.join(root, ".task_manager", "tasks", "add-dark-mode.md"),
+      raw.slice(0, raw.indexOf("\n---", 3) + 4) + "\n",
+      "utf8"
+    );
+    assert.equal((await ops.checkTask(root, "add-dark-mode.md")).ok, false);
+    const result = await ops.fixTask(root, "add-dark-mode.md");
+    assert.equal(result.fixed, true);
+    assert.equal((await ops.checkTask(root, "add-dark-mode.md")).ok, true);
+    const task = await ops.getTask(root, "add-dark-mode.md");
+    assert.deepEqual(task.sections.map((s) => s.name), ["Descrizione", "Note", "Checklist"]);
+  }));
+
+test("end_task refuses to finish a task with missing mandatory sections, and accepts empty ones", (t) =>
+  withProject(t, async (root) => {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const raw = await readRawFile(root, "add-dark-mode.md");
+    const { promises: fs } = await import("node:fs");
+    const path = await import("node:path");
+    const file = path.join(root, ".task_manager", "tasks", "add-dark-mode.md");
+    await fs.writeFile(file, raw.replace(/## Note\n\n/, ""), "utf8");
+
+    await assert.rejects(
+      () => ops.endTask(root, "add-dark-mode.md"),
+      (err: { code?: string; message: string }) => err.code === "missing_sections" && /Note/.test(err.message)
+    );
+    await assert.rejects(() => ops.changeStatus(root, "add-dark-mode.md", "finished"), /missing mandatory/);
+    assert.ok(await fileExistsAt(root, "add-dark-mode.md"));
+
+    await ops.fixTask(root, "add-dark-mode.md");
+    const done = await ops.endTask(root, "add-dark-mode.md"); // sections are present though empty
+    assert.equal(done.frontmatter.status, "finished");
+  }));

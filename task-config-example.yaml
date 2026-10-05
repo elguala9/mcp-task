@@ -17,7 +17,11 @@ priorities:
 types:
   feature:
     sections:
+      # Each section accepts an optional "presence": Mandatory | Optional
+      # (default: Mandatory). Optional sections are not generated on task
+      # creation, not reported as missing by check_task and not restored by fix_task.
       - name: Related RFC
+        presence: Optional
         description: "Which RFC (if any) this feature implements or refers to, e.g. \"rfc/some-proposal.md\""
       - name: Need
         description: "Why this feature is being built"

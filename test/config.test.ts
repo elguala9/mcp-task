@@ -69,3 +69,32 @@ types:
     await cleanup(root);
   }
 });
+
+test("loadConfig parses section presence, defaulting to mandatory and rejecting unknown values", async () => {
+  const config = `
+types:
+  feature:
+    sections:
+      - name: A
+      - name: B
+        presence: optional
+      - name: C
+        presence: Mandatory
+`;
+  const root = await makeProject("section-presence", config);
+  try {
+    const sections = (await loadConfig(root)).types.feature.sections!;
+    assert.equal(sections[0].presence, undefined);
+    assert.equal(sections[1].presence, "Optional");
+    assert.equal(sections[2].presence, "Mandatory");
+  } finally {
+    await cleanup(root);
+  }
+
+  const bad = await makeProject("section-presence-invalid", "types:\n  feature:\n    sections:\n      - name: A\n        presence: maybe\n");
+  try {
+    await assert.rejects(() => loadConfig(bad), /Invalid "presence"/);
+  } finally {
+    await cleanup(bad);
+  }
+});
