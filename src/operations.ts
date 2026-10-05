@@ -1,7 +1,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { validateConfig, tasksDir, groupsDir, initConfig as initConfigFile } from "./config.js";
+import { validateConfig, tasksDir, groupsDir, initConfig as initConfigFile, initProject } from "./config.js";
+import type { InitResult } from "./config.js";
 import { slugify } from "./slug.js";
 import { parseFrontmatter, serializeFile } from "./frontmatter.js";
 import {
@@ -53,6 +54,17 @@ export const getTaskConfig = getConfig;
 /** Creates task-config.yaml from the packaged example, if it doesn't already exist. */
 export async function initConfig(projectRoot: string, options: { force?: boolean } = {}): Promise<{ path: string }> {
   return initConfigFile(projectRoot, options);
+}
+
+/**
+ * Full project setup: config file plus .task_manager/tasks and groups folders.
+ * TASK-MANAGER.md (agent instructions) is created only if `instructions` is set.
+ */
+export async function init(
+  projectRoot: string,
+  options: { force?: boolean; instructions?: boolean } = {}
+): Promise<InitResult> {
+  return initProject(projectRoot, options);
 }
 
 async function readRawTask(projectRoot: string, relPath: string) {

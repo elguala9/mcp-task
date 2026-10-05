@@ -233,6 +233,20 @@ export function createServer(projectRoot: string): McpServer {
   );
 
   server.registerTool(
+    "init",
+    {
+      title: "Init project",
+      description:
+        "Sets up the project: creates task-config.yaml, .task_manager/tasks/ and .task_manager/groups/. Existing files are left untouched unless force is set. TASK-MANAGER.md (instructions for the AI agent) is created only if instructions is true.",
+      inputSchema: {
+        instructions: z.boolean().optional().describe("Also create TASK-MANAGER.md with usage instructions for the AI agent"),
+        force: z.boolean().optional().describe("Overwrite existing task-config.yaml / TASK-MANAGER.md"),
+      },
+    },
+    async ({ instructions, force }) => guarded(() => ops.init(projectRoot, { instructions, force }))
+  );
+
+  server.registerTool(
     "init_config",
     {
       title: "Init config",

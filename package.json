@@ -38,7 +38,8 @@
     "dist",
     "README.md",
     "LICENSE",
-    "task-config-example.yaml"
+    "task-config-example.yaml",
+    "TASK-MANAGER-example.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -46,7 +47,8 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "pretest": "node -e \"require('fs').rmSync('test/.sandbox',{recursive:true,force:true})\"",
-    "test": "tsx --test test/**/*.test.ts"
+    "test": "tsx --test test/**/*.test.ts",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",

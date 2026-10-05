@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadConfig } from "../src/config.js";
+import { loadConfig, initProject } from "../src/config.js";
 import { makeProject, cleanup, SAMPLE_CONFIG } from "./testUtils.js";
 
 test("loadConfig creates task-config.yaml from the packaged template when it's missing", async () => {
@@ -96,5 +96,29 @@ types:
     await assert.rejects(() => loadConfig(bad), /Invalid "presence"/);
   } finally {
     await cleanup(bad);
+  }
+});
+
+test("initProject creates config and folders, and TASK-MANAGER.md only when requested", async () => {
+  const root = await makeProject("init project");
+  try {
+    await fs.rm(path.join(root, ".task_manager"), { recursive: true, force: true });
+    const first = await initProject(root);
+    assert.equal(first.config.created, true);
+    assert.equal(first.instructions, undefined);
+    await fs.access(path.join(root, "task-config.yaml"));
+    await fs.access(path.join(root, ".task_manager", "tasks"));
+    await fs.access(path.join(root, ".task_manager", "groups"));
+    await assert.rejects(fs.access(path.join(root, "TASK-MANAGER.md")));
+
+    const second = await initProject(root, { instructions: true });
+    assert.equal(second.config.created, false);
+    assert.equal(second.instructions?.created, true);
+    await fs.access(path.join(root, "TASK-MANAGER.md"));
+
+    const third = await initProject(root, { instructions: true });
+    assert.equal(third.instructions?.created, false);
+  } finally {
+    await cleanup(root);
   }
 });
