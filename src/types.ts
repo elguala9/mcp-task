@@ -1,9 +1,13 @@
 export const RESERVED_STATUSES = ["created", "finished"] as const;
 export type ReservedStatus = (typeof RESERVED_STATUSES)[number];
 
+export type SectionPresence = "Mandatory" | "Optional";
+
 export interface SectionDef {
   name: string;
   description?: string;
+  /** Defaults to "Mandatory" when omitted. */
+  presence?: SectionPresence;
   sections?: SectionDef[];
 }
 

@@ -519,6 +519,7 @@ function findMissingSections(
     const fullPath = prefix ? `${prefix} > ${def.name}` : def.name;
     const match = actualHeadings.find((n) => n.name === def.name);
     if (!match) {
+      if (def.presence === "Optional") continue;
       issues.push({ type: "missing_section", message: `Missing section "${fullPath}"`, path: fullPath });
       continue;
     }
@@ -610,15 +611,17 @@ interface Insertion {
  * siblings.
  */
 function computeMissingInsertions(
-  expected: SectionDef[] | undefined,
+  allExpected: SectionDef[] | undefined,
   actualNodes: ReturnType<typeof parseBody>["roots"],
   parentEndLine: number,
   level: number,
   insertions: Insertion[]
 ): void {
-  if (!expected || expected.length === 0) return;
+  if (!allExpected || allExpected.length === 0) return;
   const actualHeadings = actualNodes.filter((n) => n.kind === "heading");
   const findActual = (name: string) => actualHeadings.find((n) => n.name === name);
+  // Optional sections that are absent are never restored.
+  const expected = allExpected.filter((d) => d.presence !== "Optional" || findActual(d.name));
 
   let i = 0;
   while (i < expected.length) {
@@ -813,6 +816,20 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
   let body = current.body;
   for (const section of input.sections ?? []) {
     body = replaceSectionContent(body, section.path, section.content);
+  }
+
+  // A task can only be finished once every Mandatory section exists (empty is fine).
+  if (mergedFrontmatter.status === "finished" && oldStatus !== "finished") {
+    const typeDef = config.types[String(mergedFrontmatter.type)];
+    const missing = findMissingSections(typeDef?.sections, toSectionTree(body), "");
+    if (missing.length > 0) {
+      throw new TaskManagerError(
+        "missing_sections",
+        `Cannot finish "${current.relPath}": missing mandatory section(s): ${missing
+          .map((i) => i.path)
+          .join(", ")}. Run fix_task to restore them.`
+      );
+    }
   }
 
   const newRelPath = await relocateIfNeeded(projectRoot, current.relPath, String(oldStatus), mergedFrontmatter.status);

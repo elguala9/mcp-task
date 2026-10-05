@@ -14,6 +14,7 @@ export type TaskManagerErrorCode =
   | "unresolved_based_on"
   | "group_conflict"
   | "invalid_config"
+  | "missing_sections"
   | "invalid_operation";
 
 export class TaskManagerError extends Error {

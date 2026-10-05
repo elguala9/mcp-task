@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { RESERVED_STATUSES } from "./types.js";
 import { TaskManagerError } from "./errors.js";
-import type { TaskConfig, SectionDef, TypeDef } from "./types.js";
+import type { TaskConfig, SectionDef, SectionPresence, TypeDef } from "./types.js";
 
 const CONFIG_FILENAME = "task-config.yaml";
 const EXAMPLE_CONFIG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "task-config-example.yaml");
@@ -26,6 +26,17 @@ function normalizeSections(sections: unknown, seenNames: Set<string>, typeName: 
   return sections.map((raw) => normalizeSection(raw, seenNames, typeName));
 }
 
+function normalizePresence(raw: unknown, sectionName: string, typeName: string): SectionPresence | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const value = String(raw).trim().toLowerCase();
+  if (value === "mandatory") return "Mandatory";
+  if (value === "optional") return "Optional";
+  throw new TaskManagerError(
+    "invalid_config",
+    `Invalid "presence" "${String(raw)}" for section "${sectionName}" of type "${typeName}": expected Mandatory or Optional`
+  );
+}
+
 function normalizeSection(raw: unknown, seenNames: Set<string>, typeName: string): SectionDef {
   if (typeof raw !== "object" || raw === null || !("name" in raw)) {
     throw new TaskManagerError(
@@ -43,9 +54,11 @@ function normalizeSection(raw: unknown, seenNames: Set<string>, typeName: string
   }
   seenNames.add(name);
   const description = obj.description !== undefined ? String(obj.description) : undefined;
+  const presence = normalizePresence(obj.presence, name, typeName);
   const children = normalizeSections(obj.sections, seenNames, typeName);
   const section: SectionDef = { name };
   if (description !== undefined) section.description = description;
+  if (presence !== undefined) section.presence = presence;
   if (children) section.sections = children;
   return section;
 }
