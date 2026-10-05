@@ -1,0 +1,8 @@
+{
+  "name": "mcp-task",
+  "version": "0.2.0",
+  "description": "Manage development tasks as Markdown files",
+  "author": { "name": "Luca Gualandi" },
+  "repository": "https://github.com/elguala9/mcp-task",
+  "license": "MIT"
+}
