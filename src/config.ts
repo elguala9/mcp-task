@@ -137,6 +137,55 @@ export async function initConfig(projectRoot: string, options: { force?: boolean
 
 export const DATA_DIRNAME = ".task_manager";
 
+const INSTRUCTIONS_FILENAME = "TASK-MANAGER.md";
+const EXAMPLE_INSTRUCTIONS_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "TASK-MANAGER-example.md");
+
+export interface InitResult {
+  config: { path: string; created: boolean };
+  directories: string[];
+  instructions?: { path: string; created: boolean };
+}
+
+async function copyTemplate(template: string, dest: string, overwrite: boolean): Promise<boolean> {
+  if (!overwrite) {
+    try {
+      await fs.access(dest);
+      return false;
+    } catch {
+      // ENOENT: fall through and create it.
+    }
+  }
+  await fs.writeFile(dest, await fs.readFile(template, "utf8"), "utf8");
+  return true;
+}
+
+/**
+ * Sets up a project in one go: task-config.yaml, .task_manager/tasks/ and
+ * .task_manager/groups/. TASK-MANAGER.md (agent instructions) is only written
+ * when `instructions` is set. Unlike initConfig, existing files are left
+ * untouched (reported with created: false) unless `force` is set.
+ */
+export async function initProject(
+  projectRoot: string,
+  options: { force?: boolean; instructions?: boolean } = {}
+): Promise<InitResult> {
+  const force = options.force ?? false;
+  await fs.mkdir(projectRoot, { recursive: true });
+  const configPath = path.join(projectRoot, CONFIG_FILENAME);
+  const configCreated = await copyTemplate(EXAMPLE_CONFIG_PATH, configPath, force);
+  const directories = [tasksDir(projectRoot), groupsDir(projectRoot)];
+  for (const dir of directories) await fs.mkdir(dir, { recursive: true });
+  const result: InitResult = { config: { path: configPath, created: configCreated }, directories };
+  if (options.instructions) {
+    const instructionsPath = path.join(projectRoot, INSTRUCTIONS_FILENAME);
+    result.instructions = {
+      path: instructionsPath,
+      created: await copyTemplate(EXAMPLE_INSTRUCTIONS_PATH, instructionsPath, force),
+    };
+  }
+  return result;
+}
+
 export function tasksDir(projectRoot: string): string {
   return path.join(projectRoot, DATA_DIRNAME, "tasks");
 }

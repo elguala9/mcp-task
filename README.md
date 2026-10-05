@@ -7,7 +7,7 @@ call, so hand-editing a file with any editor is always safe and immediately
 visible to the next tool call.
 
 See [`todo-mcp-task-manager.txt`](./todo-mcp-task-manager.txt) for the full
-design spec, and [`CLAUDE-example.md`](./CLAUDE-example.md) for a ready-to-copy
+design spec, and [`TASK-MANAGER-example.md`](./TASK-MANAGER-example.md) for a ready-to-copy
 set of agent instructions on how to use the tools below correctly.
 
 ## Install
@@ -130,6 +130,7 @@ alone is ambiguous, e.g. `Checklist > Fase 2`.
 | Tool | Parameters | Description |
 | --- | --- | --- |
 | `get_task_config` | – | The parsed `task-config.yaml` (statuses, priorities, types/sections). |
+| `init` | `instructions?`, `force?` | Sets up the project: creates `task-config.yaml`, `.task_manager/tasks/` and `.task_manager/groups/`. Existing files are kept unless `force` is set. `TASK-MANAGER.md` (agent instructions, from [`TASK-MANAGER-example.md`](./TASK-MANAGER-example.md)) is created only when `instructions` is true. CLI: `init [--instructions] [--force]`. |
 | `init_config` | `force?` | Creates `task-config.yaml` from the packaged template. Fails with `collision` if it exists, unless `force` is set. |
 
 ### Statuses

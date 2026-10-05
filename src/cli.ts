@@ -226,6 +226,19 @@ export function buildCli(projectRoot: string): Command {
     });
 
   program
+    .command("init")
+    .description("create task-config.yaml and the .task_manager/ folders")
+    .option("--instructions", "also create TASK-MANAGER.md with instructions for the AI agent", false)
+    .option("--force", "overwrite existing task-config.yaml / TASK-MANAGER.md", false)
+    .action(async (opts) => {
+      try {
+        print(await ops.init(projectRoot, { instructions: opts.instructions, force: opts.force }));
+      } catch (err) {
+        fail(err);
+      }
+    });
+
+  program
     .command("init-config")
     .option("--force", "overwrite an existing task-config.yaml", false)
     .action(async (opts) => {
