@@ -1,0 +1,7 @@
+{
+  "name": "elguala-tools",
+  "owner": { "name": "Luca Gualandi" },
+  "plugins": [
+    { "name": "mcp-task", "source": "./", "description": "Local task manager MCP server + CLI" }
+  ]
+}

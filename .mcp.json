@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "task-manager": {
+      "command": "npx",
+      "args": ["-y", "@elguala/mcp-task", "serve", "--project", "${CLAUDE_PROJECT_DIR}"]
+    }
+  }
+}
