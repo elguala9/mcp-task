@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -97,6 +97,7 @@ async function readOrCreateConfigFile(projectRoot: string): Promise<string> {
 export async function loadConfig(projectRoot: string): Promise<TaskConfig> {
   const raw = await readOrCreateConfigFile(projectRoot);
   const data = (yaml.load(raw) ?? {}) as Record<string, unknown>;
+  normalizeDataDir(data.data_dir);
   return {
     statuses: ensureReservedStatuses(data.statuses),
     priorities: Array.isArray(data.priorities) ? data.priorities.map((p) => String(p)) : [],
@@ -136,6 +137,34 @@ export async function initConfig(projectRoot: string, options: { force?: boolean
 }
 
 export const DATA_DIRNAME = ".task_manager";
+
+/**
+ * Folder (relative to the project root) that holds tasks/ and groups/. Read
+ * from the optional "data_dir" key of task-config.yaml, default ".task_manager".
+ * Read synchronously because the path helpers below are sync and used everywhere.
+ */
+export function dataDirName(projectRoot: string): string {
+  let raw: string;
+  try {
+    raw = readFileSync(path.join(projectRoot, CONFIG_FILENAME), "utf8");
+  } catch {
+    return DATA_DIRNAME;
+  }
+  const data = (yaml.load(raw) ?? {}) as Record<string, unknown>;
+  return normalizeDataDir(data.data_dir);
+}
+
+function normalizeDataDir(raw: unknown): string {
+  if (raw === undefined || raw === null) return DATA_DIRNAME;
+  const value = String(raw).trim().replace(/\\/g, "/").replace(/\/+$/, "");
+  if (!value || value.startsWith("/") || /^[A-Za-z]:/.test(value) || value.split("/").includes("..")) {
+    throw new TaskManagerError(
+      "invalid_config",
+      `Invalid "data_dir" "${String(raw)}": expected a path relative to the project root, without ".."`
+    );
+  }
+  return value;
+}
 
 const INSTRUCTIONS_FILENAME = "TASK-MANAGER.md";
 const EXAMPLE_INSTRUCTIONS_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "TASK-MANAGER-example.md");
@@ -187,13 +216,13 @@ export async function initProject(
 }
 
 export function tasksDir(projectRoot: string): string {
-  return path.join(projectRoot, DATA_DIRNAME, "tasks");
+  return path.join(projectRoot, dataDirName(projectRoot), "tasks");
 }
 
 export function groupsDir(projectRoot: string): string {
-  return path.join(projectRoot, DATA_DIRNAME, "groups");
+  return path.join(projectRoot, dataDirName(projectRoot), "groups");
 }
 
 export function doneDir(projectRoot: string): string {
-  return path.join(projectRoot, DATA_DIRNAME, "tasks", "done");
+  return path.join(projectRoot, dataDirName(projectRoot), "tasks", "done");
 }

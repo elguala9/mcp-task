@@ -122,3 +122,39 @@ test("initProject creates config and folders, and TASK-MANAGER.md only when requ
     await cleanup(root);
   }
 });
+
+test("data_dir in task-config.yaml relocates tasks/ and groups/", async () => {
+  const root = await makeProject("custom-data-dir", `data_dir: "."\n${SAMPLE_CONFIG}`);
+  try {
+    const { createTask } = await import("../src/operations.js");
+    const created = await createTask(root, { title: "Custom dir", type: "feature", group: "g1" });
+    await fs.access(path.join(root, "tasks", `${created.path}`));
+    await fs.access(path.join(root, "groups", "g1.md"));
+    await assert.rejects(() => fs.access(path.join(root, ".task_manager", "groups")));
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("data_dir rejects absolute or parent paths", async () => {
+  const root = await makeProject("bad-data-dir", `data_dir: "../elsewhere"\n${SAMPLE_CONFIG}`);
+  try {
+    await assert.rejects(() => loadConfig(root), /data_dir/);
+  } finally {
+    await cleanup(root);
+  }
+});
+
+test("create_task folder creates the task in a subfolder and rejects unsafe folders", async () => {
+  const root = await makeProject("task-folder", SAMPLE_CONFIG);
+  try {
+    const { createTask, getTask } = await import("../src/operations.js");
+    const created = await createTask(root, { title: "In folder", type: "feature", folder: "proj/topic/in-corso" });
+    assert.equal(created.path, "proj/topic/in-corso/in-folder.md");
+    assert.equal((await getTask(root, created.path)).path, created.path);
+    await assert.rejects(() => createTask(root, { title: "x", type: "feature", folder: "../out" }), /Invalid folder/);
+    await assert.rejects(() => createTask(root, { title: "y", type: "feature", folder: "done/a" }), /reserved/);
+  } finally {
+    await cleanup(root);
+  }
+});

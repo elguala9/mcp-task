@@ -277,6 +277,21 @@ export interface CreateTaskInput {
   group?: string;
   dependencies?: string[];
   based_on?: string[];
+  /** Subfolder of the tasks directory to create the task in, e.g. "my-project/topic/in-progress". */
+  folder?: string;
+}
+
+function normalizeFolder(folder: string | undefined): string {
+  if (folder === undefined) return "";
+  const value = folder.trim().replace(/\\/g, "/").replace(/^\.?\/+|\/+$/g, "");
+  if (!value) return "";
+  if (value.startsWith("/") || /^[A-Za-z]:/.test(value) || value.split("/").some((s) => s === ".." || s === "." || s === "")) {
+    throw new TaskManagerError("invalid_input", `Invalid folder "${folder}": expected a relative path without ".." or empty segments`);
+  }
+  if (value === DONE_SUBDIR || value.startsWith(`${DONE_SUBDIR}/`)) {
+    throw new TaskManagerError("invalid_input", `Invalid folder "${folder}": "${DONE_SUBDIR}/" is reserved for finished tasks`);
+  }
+  return value;
 }
 
 export async function createTask(projectRoot: string, input: CreateTaskInput): Promise<TaskSummary> {
@@ -288,7 +303,8 @@ export async function createTask(projectRoot: string, input: CreateTaskInput): P
   const slug = slugify(title);
   if (!slug)
     throw new TaskManagerError("invalid_input", `Could not derive a filename slug from title "${title}"`);
-  const relPath = `${slug}.md`;
+  const folder = normalizeFolder(input.folder);
+  const relPath = folder ? `${folder}/${slug}.md` : `${slug}.md`;
 
   await assertNoCollision(projectRoot, relPath);
 

@@ -32,6 +32,7 @@ export function buildCli(projectRoot: string): Command {
     .option("--group <group>", "group id; tasks linked by dependencies/based_on must share one")
     .option("--dependencies <paths>", "comma-separated list of dependency paths")
     .option("--based-on <paths>", "comma-separated list of paths this task is derived from")
+    .option("--folder <folder>", "subfolder of the tasks directory to create the task in")
     .action(async (opts) => {
       try {
         print(
@@ -43,6 +44,7 @@ export function buildCli(projectRoot: string): Command {
             group: opts.group,
             dependencies: list(opts.dependencies),
             based_on: list(opts.basedOn),
+            folder: opts.folder,
           })
         );
       } catch (err) {

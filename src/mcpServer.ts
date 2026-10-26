@@ -53,6 +53,10 @@ export function createServer(projectRoot: string): McpServer {
           .array(z.string())
           .optional()
           .describe("Paths (relative to .task_manager/tasks/) of tasks this task is derived from (not a dependency)"),
+        folder: z
+          .string()
+          .optional()
+          .describe('Subfolder of the tasks directory to create the task in, e.g. "my-project/topic/in-progress". Created if missing; "done/" is reserved.'),
       },
     },
     async (args) => guarded(() => ops.createTask(projectRoot, args))

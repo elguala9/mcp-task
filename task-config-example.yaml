@@ -1,6 +1,11 @@
 # Example task-config.yaml — replace with your own.
 # See todo-mcp-task-manager.txt for the full spec of every field below.
 
+# Optional: folder (relative to the project root) holding tasks/ and groups/.
+# Default: .task_manager. E.g. "." stores tasks in <project>/tasks/ and
+# <project>/groups/.
+# data_dir: .task_manager
+
 statuses:
   - created
   - finished

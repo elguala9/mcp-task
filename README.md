@@ -38,6 +38,12 @@ Add this to the client's MCP config (`claude_desktop_config.json`,
 }
 ```
 
+The storage folder defaults to `.task_manager/` and can be changed with the optional
+`data_dir` key of `task-config.yaml` (relative to the project root, no `..`), e.g.
+`data_dir: "."` stores tasks in `<project>/tasks/` and groups in `<project>/groups/`.
+`create_task` also accepts an optional `folder` (e.g. `"my-project/topic/in-progress"`)
+to create the task in a subfolder of the tasks directory.
+
 `--project` can be omitted if you set the `MCP_TASK_PROJECT_ROOT` environment
 variable instead. The project directory needs a `.task_manager/tasks/` folder (created for
 you on first `create_task`) and, optionally, a `task-config.yaml` — run
