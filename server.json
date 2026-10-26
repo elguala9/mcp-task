@@ -20,7 +20,7 @@
         {
           "type": "named",
           "name": "--project",
-          "description": "Absolute path of the project whose .task_manager/ folder holds the tasks",
+          "description": "Absolute path of the project whose task folder (default .task_manager/, configurable via data_dir) holds the tasks",
           "format": "string",
           "isRequired": true
         }
