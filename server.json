@@ -7,16 +7,21 @@
     "url": "https://github.com/elguala9/mcp-task",
     "source": "github"
   },
-  "version": "0.2.0",
+  "version": "0.2.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@elguala/mcp-task",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtimeHint": "npx",
-      "transport": { "type": "stdio" },
+      "transport": {
+        "type": "stdio"
+      },
       "packageArguments": [
-        { "type": "positional", "value": "serve" },
+        {
+          "type": "positional",
+          "value": "serve"
+        },
         {
           "type": "named",
           "name": "--project",
