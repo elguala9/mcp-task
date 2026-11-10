@@ -21,6 +21,10 @@ priorities:
 
 types:
   feature:
+    # Optional "done_folder": subfolder of done/ where finished tasks of this
+    # type are moved, keeping their original path (e.g. "features" ->
+    # done/features/<path>). Default: done/ itself.
+    # done_folder: features
     sections:
       # Each section accepts an optional "presence": Mandatory | Optional
       # (default: Mandatory). Optional sections are not generated on task

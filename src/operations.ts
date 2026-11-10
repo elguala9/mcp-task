@@ -740,13 +740,14 @@ async function relocateIfNeeded(
   projectRoot: string,
   relPath: string,
   oldStatus: string | undefined,
-  newStatus: string | undefined
+  newStatus: string | undefined,
+  doneFolder?: string
 ): Promise<string> {
   if (newStatus === undefined || newStatus === oldStatus) return relPath;
   const currentlyInDone = isInDone(relPath);
 
   if (newStatus === "finished" && !currentlyInDone) {
-    const target = `${DONE_SUBDIR}/${relPath}`;
+    const target = doneFolder ? `${DONE_SUBDIR}/${doneFolder}/${relPath}` : `${DONE_SUBDIR}/${relPath}`;
     const targetAbs = absolutePathFor(projectRoot, target);
     if (await fileExists(targetAbs)) {
       throw new TaskManagerError("collision", `Cannot move task to .task_manager/tasks/done/: "${target}" already exists there.`);
@@ -757,7 +758,8 @@ async function relocateIfNeeded(
   }
 
   if (oldStatus === "finished" && newStatus !== "finished" && currentlyInDone) {
-    const target = relPath.slice(DONE_SUBDIR.length + 1);
+    let target = relPath.slice(DONE_SUBDIR.length + 1);
+    if (doneFolder && target.startsWith(`${doneFolder}/`)) target = target.slice(doneFolder.length + 1);
     const targetAbs = absolutePathFor(projectRoot, target);
     if (await fileExists(targetAbs)) {
       throw new TaskManagerError(
@@ -860,7 +862,13 @@ export async function updateTask(projectRoot: string, relPath: string, input: Up
     }
   }
 
-  const newRelPath = await relocateIfNeeded(projectRoot, current.relPath, String(oldStatus), mergedFrontmatter.status);
+  const newRelPath = await relocateIfNeeded(
+    projectRoot,
+    current.relPath,
+    String(oldStatus),
+    mergedFrontmatter.status,
+    config.types[String(mergedFrontmatter.type)]?.done_folder
+  );
   const newAbs = absolutePathFor(projectRoot, newRelPath);
   await writeRawTask(newAbs, mergedFrontmatter, body);
   if (mergedFrontmatter.group !== undefined) await ensureGroupInfo(projectRoot, String(mergedFrontmatter.group));

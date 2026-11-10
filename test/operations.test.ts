@@ -367,6 +367,21 @@ test("end_task sets the finished status and moves the file to done/", (t) =>
     assert.equal(ended.path, "done/add-dark-mode.md");
   }));
 
+test("finished tasks go to the type's done_folder and come back out when reopened", async (t) => {
+  const root = await makeProject(t.name, SAMPLE_CONFIG.replace("  feature:\n", "  feature:\n    done_folder: features\n"));
+  try {
+    await ops.createTask(root, { title: "Add dark mode", type: "feature" });
+    const ended = await ops.changeStatus(root, "add-dark-mode.md", "finished");
+    assert.equal(ended.path, "done/features/add-dark-mode.md");
+    const reopened = await ops.changeStatus(root, ended.path, "created");
+    assert.equal(reopened.path, "add-dark-mode.md");
+    await ops.changeStatus(root, reopened.path, "finished");
+    await assert.rejects(ops.createTask(root, { title: "Add dark mode", type: "fix" }), /already exists/);
+  } finally {
+    await cleanup(root);
+  }
+});
+
 test("change_status accepts a custom configured status and rejects unknown ones", (t) =>
   withProject(t, async (root) => {
     await ops.createTask(root, { title: "Add dark mode", type: "feature" });

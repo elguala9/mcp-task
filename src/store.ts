@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { tasksDir, doneDir } from "./config.js";
+import { tasksDir, doneDir, loadConfig } from "./config.js";
 import { TaskManagerError } from "./errors.js";
 
 export const DONE_SUBDIR = "done";
@@ -47,11 +47,18 @@ export async function assertNoCollision(projectRoot: string, relPath: string): P
   const normalized = normalizeTaskPath(relPath);
   const bareRelPath = isInDone(normalized) ? normalized.slice(DONE_SUBDIR.length + 1) : normalized;
   const activeAbs = absolutePathFor(projectRoot, bareRelPath);
-  const doneAbs = absolutePathFor(projectRoot, `${DONE_SUBDIR}/${bareRelPath}`);
-  if ((await fileExists(activeAbs)) || (await fileExists(doneAbs))) {
+  const config = await loadConfig(projectRoot);
+  const doneFolders = new Set(["", ...Object.values(config.types).map((t) => t.done_folder ?? "")]);
+  const candidates = [activeAbs];
+  for (const folder of doneFolders) {
+    candidates.push(absolutePathFor(projectRoot, folder ? `${DONE_SUBDIR}/${folder}/${bareRelPath}` : `${DONE_SUBDIR}/${bareRelPath}`));
+  }
+  let exists = false;
+  for (const abs of candidates) if (await fileExists(abs)) { exists = true; break; }
+  if (exists) {
     throw new TaskManagerError(
       "collision",
-      `A task named "${bareRelPath}" already exists (checked .task_manager/tasks/ and .task_manager/tasks/done/). Choose a different name.`
+      `A task named "${bareRelPath}" already exists (checked .task_manager/tasks/ and .task_manager/tasks/done/, including every type's done_folder). Choose a different name.`
     );
   }
 }

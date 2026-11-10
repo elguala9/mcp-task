@@ -142,7 +142,8 @@ alone is ambiguous, e.g. `Checklist > Fase 2`.
 ### Statuses
 
 Only `created` and `finished` are built in. `finished` is terminal: it moves
-the file to `done/`. Any other status (`started`, `review`, ...) is custom:
+the file to `done/` (or to `done/<done_folder>/` when the task's type sets
+`done_folder` in `task-config.yaml`, e.g. `done_folder: features`). Any other status (`started`, `review`, ...) is custom:
 list it in `task-config.yaml` and set it with `change_status`.
 
 Every failure returns `{ ok: false, error: { code, message } }` with a

@@ -13,6 +13,8 @@ export interface SectionDef {
 
 export interface TypeDef {
   sections?: SectionDef[];
+  /** Subfolder of done/ where finished tasks of this type are moved (default: done/ itself). */
+  done_folder?: string;
 }
 
 export interface TaskConfig {

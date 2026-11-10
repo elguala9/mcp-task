@@ -72,9 +72,25 @@ function normalizeTypes(types: unknown): Record<string, TypeDef> {
     const defObj = (def ?? {}) as Record<string, unknown>;
     const seenNames = new Set<string>();
     const sections = normalizeSections(defObj.sections, seenNames, typeName);
-    result[typeName] = sections ? { sections } : {};
+    const typeDef: TypeDef = sections ? { sections } : {};
+    const doneFolder = normalizeDoneFolder(defObj.done_folder, typeName);
+    if (doneFolder) typeDef.done_folder = doneFolder;
+    result[typeName] = typeDef;
   }
   return result;
+}
+
+function normalizeDoneFolder(raw: unknown, typeName: string): string | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const value = String(raw).trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!value) return undefined;
+  if (/^[A-Za-z]:/.test(value) || value.split("/").some((s) => s === ".." || s === "." || s === "")) {
+    throw new TaskManagerError(
+      "invalid_config",
+      `Invalid "done_folder" "${String(raw)}" for type "${typeName}": expected a relative path inside done/, without ".." or empty segments`
+    );
+  }
+  return value;
 }
 
 /**
